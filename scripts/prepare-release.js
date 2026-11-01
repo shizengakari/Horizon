@@ -66,7 +66,7 @@ try {
   const swJsPath = 'public/sw.js';
   if (fs.existsSync(swJsPath)) {
     const swRaw = fs.readFileSync(swJsPath, 'utf8');
-    const updatedSw = swRaw.replace(/const CACHE_NAME = 'canvas-horizon-v[^']*';/, `const CACHE_NAME = 'canvas-horizon-v${version}';`);
+    const updatedSw = swRaw.replace(/const CACHE_NAME = '(?:canvas-)?horizon-v[^']*';/, `const CACHE_NAME = 'horizon-v${version}';`);
     if (updatedSw !== swRaw) {
       fs.writeFileSync(swJsPath, updatedSw, 'utf8');
     }

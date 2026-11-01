@@ -1,10 +1,10 @@
 [package]
-name = "canvas-horizon"
-version = "1.4.8"
-description = "Canvas Horizon - Rust Native Desktop Client for Canvas LMS"
+name = "horizon"
+version = "1.4.9"
+description = "Horizon - Rust Native Desktop Client"
 authors = ["shizengakari"]
 license = "MIT"
-repository = "https://github.com/shizengakari/CanvasLMS-Horizon"
+repository = "https://github.com/shizengakari/Horizon"
 edition = "2024"
 rust-version = "1.90"
 

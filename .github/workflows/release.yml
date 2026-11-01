@@ -1,4 +1,4 @@
-name: Release Canvas Horizon
+name: Release Horizon
 
 on:
   push:
@@ -43,14 +43,14 @@ jobs:
         with:
           workspaces: src-tauri
 
-      - name: Rust ネイティブバイナリ (canvas-horizon.exe) のビルド
+      - name: Rust ネイティブバイナリ (horizon.exe) のビルド
         run: cargo build --release --manifest-path src-tauri/Cargo.toml
 
-      - name: リリース成果物 (canvas-horizon.exe & ZIP) の配置
+      - name: リリース成果物 (horizon.exe & ZIP) の配置
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item -Path "src-tauri\target\release\canvas-horizon.exe" -Destination "dist\canvas-horizon.exe" -Force
-          Compress-Archive -Path "dist\canvas-horizon.exe" -DestinationPath "dist\canvas-horizon-windows-x64.zip" -Force
+          Copy-Item -Path "src-tauri\target\release\horizon.exe" -Destination "dist\horizon.exe" -Force
+          Compress-Archive -Path "dist\horizon.exe" -DestinationPath "dist\horizon-windows-x64.zip" -Force
 
       - name: GitHub Releases へ公開
         uses: softprops/action-gh-release@v2
@@ -58,8 +58,8 @@ jobs:
           tag_name: ${{ env.RELEASE_TAG }}
           name: ${{ env.RELEASE_TAG }}
           files: |
-            dist/canvas-horizon.exe
-            dist/canvas-horizon-windows-x64.zip
+            dist/horizon.exe
+            dist/horizon-windows-x64.zip
           draft: false
           prerelease: false
           generate_release_notes: true

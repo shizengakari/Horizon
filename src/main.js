@@ -1,5 +1,5 @@
 /**
- * Canvas Horizon - Electron メインプロセス
+ * Horizon - Electron メインプロセス
  * デスクトップウィンドウのライフサイクル、ネイティブUI、IPC通信を管理します。
  */
 
@@ -23,7 +23,7 @@ process.on('uncaughtException', (err) => {
   if (err && (err.code === 'EPIPE' || (err.message && err.message.includes('EPIPE')))) return;
   console.error('Uncaught Exception:', err);
   try {
-    dialog.showErrorBox('Canvas Horizon エラー', `予期せぬエラーが発生しました:\n${err?.stack || err?.message || err}`);
+    dialog.showErrorBox('Horizon エラー', `予期せぬエラーが発生しました:\n${err?.stack || err?.message || err}`);
   } catch (e) {}
 });
 
@@ -43,8 +43,8 @@ let actualPort = PORT;
 let downloadsActive = false;
 
 // タスクバーのアプリアイコン設定
-app.setName('Canvas Horizon');
-app.setAppUserModelId('io.github.shizengakari.canvashorizon');
+app.setName('Horizon');
+app.setAppUserModelId('io.github.shizengakari.horizon');
 
 // 二重起動の防止および既存ウィンドウのフォーカス
 const gotTheLock = app.requestSingleInstanceLock();
@@ -98,7 +98,7 @@ if (!gotTheLock) {
         minWidth: 1024,
         minHeight: 700,
         backgroundColor: initialBg,
-        title: 'Canvas Horizon',
+        title: 'Horizon',
         icon: path.join(__dirname, '..', 'app.ico'),
         autoHideMenuBar: true,
         webPreferences: {
@@ -233,7 +233,7 @@ if (!gotTheLock) {
       });
     } catch (err) {
       console.error('Failed to create window:', err);
-      dialog.showErrorBox('Canvas Horizon 起動エラー', `ウィンドウの作成に失敗しました:\n${err?.stack || err?.message || err}`);
+      dialog.showErrorBox('Horizon 起動エラー', `ウィンドウの作成に失敗しました:\n${err?.stack || err?.message || err}`);
     }
   }
 
@@ -323,10 +323,10 @@ if (!gotTheLock) {
       const pkg = require('../package.json');
       const currentVersion = `v${pkg.version}`;
       const cfg = loadConfig();
-      const repo = cfg.githubRepo || 'shizengakari/CanvasLMS-Horizon';
+      const repo = cfg.githubRepo || 'shizengakari/Horizon';
       const resp = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
         headers: {
-          'User-Agent': 'CanvasHorizon-App',
+          'User-Agent': 'Horizon-App',
           'Accept': 'application/vnd.github.v3+json',
           'Cache-Control': 'no-cache'
         }
@@ -337,9 +337,9 @@ if (!gotTheLock) {
       const release = await resp.json();
       const latestTag = release.tag_name || '';
       const hasNewerVersion = compareSemver(latestTag, currentVersion) > 0;
-      const rustExeAsset = release.assets?.find(a => a.name && a.name.toLowerCase() === 'canvas-horizon.exe');
+      const rustExeAsset = release.assets?.find(a => a.name && (a.name.toLowerCase() === 'horizon.exe' || a.name.toLowerCase() === 'canvas-horizon.exe'));
       const asarAsset = release.assets?.find(a => a.name === 'app.asar');
-      // Electron 実行中かつ同バージョンのリリースに Rust ネイティブ版 (canvas-horizon.exe) が存在する場合は移行アップデートを提供
+      // Electron 実行中かつ同バージョンのリリースに Rust ネイティブ版 (horizon.exe) が存在する場合は移行アップデートを提供
       const canMigrateToRust = Boolean(rustExeAsset && compareSemver(latestTag, currentVersion) >= 0);
       const targetAsset = rustExeAsset || asarAsset;
 
@@ -390,26 +390,26 @@ if (!gotTheLock) {
     }
     try {
       const cfg = loadConfig();
-      const repo = cfg.githubRepo || 'shizengakari/CanvasLMS-Horizon';
+      const repo = cfg.githubRepo || 'shizengakari/Horizon';
       const resp = await fetch(`https://api.github.com/repos/${repo}/releases/latest`, {
         headers: {
-          'User-Agent': 'CanvasHorizon-App',
+          'User-Agent': 'Horizon-App',
           'Accept': 'application/vnd.github.v3+json'
         }
       });
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const release = await resp.json();
-      const rustExeAsset = release.assets?.find(a => a.name && a.name.toLowerCase() === 'canvas-horizon.exe');
+      const rustExeAsset = release.assets?.find(a => a.name && (a.name.toLowerCase() === 'horizon.exe' || a.name.toLowerCase() === 'canvas-horizon.exe'));
       const asarAsset = release.assets?.find(a => a.name === 'app.asar');
       const targetAsset = rustExeAsset || asarAsset;
-      if (!targetAsset) throw new Error('更新ファイル (canvas-horizon.exe / app.asar) が最新リリースに見つかりません');
+      if (!targetAsset) throw new Error('更新ファイル (horizon.exe / app.asar) が最新リリースに見つかりません');
 
       const isRustExe = Boolean(rustExeAsset);
       const downloadUrl = targetAsset.browser_download_url;
       const totalBytes = targetAsset.size || 0;
       const updateDir = path.join(app.getPath('userData'), 'pending-update');
       if (!fs.existsSync(updateDir)) fs.mkdirSync(updateDir, { recursive: true });
-      const pendingFile = path.join(updateDir, isRustExe ? 'canvas-horizon.update.exe' : 'app.update.bin');
+      const pendingFile = path.join(updateDir, isRustExe ? 'horizon.update.exe' : 'app.update.bin');
       pendingAsarUpdate = null;
 
       const downloadResp = await fetch(downloadUrl);
@@ -596,7 +596,7 @@ ${unblockTargetCmd}start "" "${pendingAsarUpdate.exePath}"\r
       await createWindow();
     } catch (err) {
       console.error('Failed to start server:', err);
-      dialog.showErrorBox('Canvas Horizon 起動エラー', `ローカルサーバーの起動に失敗しました:\n${err.message}`);
+      dialog.showErrorBox('Horizon 起動エラー', `ローカルサーバーの起動に失敗しました:\n${err.message}`);
     }
 
     app.on('activate', () => {

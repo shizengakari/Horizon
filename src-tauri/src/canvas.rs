@@ -101,7 +101,7 @@ impl CanvasService {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(25))
             .pool_max_idle_per_host(8)
-            .user_agent("CanvasHorizon-Rust/1.3.0")
+            .user_agent("Horizon-Rust/1.4.9")
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
 
@@ -306,7 +306,7 @@ impl CanvasService {
                     let status = res.status().as_u16();
                     if status == 401 {
                         return Err(
-                            "Canvas APIトークンが無効または期限切れです。設定を確認してください。"
+                            "[401] APIトークンが無効または期限切れです。設定画面から新しいトークンを入力して保存してください。"
                                 .to_string(),
                         );
                     }
@@ -405,9 +405,11 @@ impl CanvasService {
                 Ok(profile)
             }
             Err(err) => {
-                if let Ok(guard) = self.cache.lock() {
-                    if let Some(p) = &guard.profile {
-                        return Ok(p.clone());
+                if !err.contains("401") && !err.contains("トークンが無効") && !err.contains("期限切れ") {
+                    if let Ok(guard) = self.cache.lock() {
+                        if let Some(p) = &guard.profile {
+                            return Ok(p.clone());
+                        }
                     }
                 }
                 Err(err)
@@ -433,10 +435,12 @@ impl CanvasService {
     {
       Ok(v) => v,
       Err(err) => {
-        if let Ok(guard) = self.cache.lock() {
-          if let Some(Value::Array(arr)) = &guard.courses {
-            if !arr.is_empty() {
-              return Ok(arr.clone());
+        if !err.contains("401") && !err.contains("トークンが無効") && !err.contains("期限切れ") {
+          if let Ok(guard) = self.cache.lock() {
+            if let Some(Value::Array(arr)) = &guard.courses {
+              if !arr.is_empty() {
+                return Ok(arr.clone());
+              }
             }
           }
         }
@@ -553,10 +557,12 @@ impl CanvasService {
         let raw = match self.fetch_json(&endpoint).await {
             Ok(v) => v,
             Err(err) => {
-                if let Ok(guard) = self.cache.lock() {
-                    if let Some(entry) = guard.assignments.get(&cache_key) {
-                        if let Some(arr) = entry.data.as_array() {
-                            return Ok(arr.clone());
+                if !err.contains("401") && !err.contains("トークンが無効") && !err.contains("期限切れ") {
+                    if let Ok(guard) = self.cache.lock() {
+                        if let Some(entry) = guard.assignments.get(&cache_key) {
+                            if let Some(arr) = entry.data.as_array() {
+                                return Ok(arr.clone());
+                            }
                         }
                     }
                 }

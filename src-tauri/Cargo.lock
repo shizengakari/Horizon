@@ -510,30 +510,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "canvas-horizon"
-version = "1.4.8"
-dependencies = [
- "axum",
- "futures-util",
- "log",
- "open",
- "regex",
- "reqwest 0.12.28",
- "rfd",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-log",
- "tokio",
- "tokio-util",
- "tower-http",
- "url",
- "urlencoding",
- "zip",
-]
-
-[[package]]
 name = "cargo-platform"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1687,6 +1663,30 @@ name = "hex"
 version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
+
+[[package]]
+name = "horizon"
+version = "1.4.9"
+dependencies = [
+ "axum",
+ "futures-util",
+ "log",
+ "open",
+ "regex",
+ "reqwest 0.12.28",
+ "rfd",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-log",
+ "tokio",
+ "tokio-util",
+ "tower-http",
+ "url",
+ "urlencoding",
+ "zip",
+]
 
 [[package]]
 name = "html5ever"

@@ -1,7 +1,7 @@
 {
-  "name": "Canvas Horizon",
-  "short_name": "Canvas Horizon",
-  "description": "Canvas LMS デスクトップクライアント",
+  "name": "Horizon",
+  "short_name": "Horizon",
+  "description": "Horizon デスクトップクライアント",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

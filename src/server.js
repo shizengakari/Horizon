@@ -16,7 +16,18 @@ const { Readable } = require('stream');
 const { pipeline } = require('stream/promises');
 const { spawn, exec } = require('child_process');
 const canvasService = require('./canvasService');
-const { loadConfig, saveConfig } = require('./config');
+const { loadConfig, saveConfig, maskToken, getUserDataDir } = require('./config');
+
+function toPublicConfig(cfg) {
+  const masked = maskToken(cfg.apiToken);
+  return {
+    ...cfg,
+    apiToken: masked,
+    maskedToken: masked,
+    hasToken: Boolean(cfg.apiToken),
+    isConfigured: Boolean(cfg.baseUrl && cfg.apiToken)
+  };
+}
 
 const app = express();
 const downloadJobs = new Map();
@@ -195,7 +206,7 @@ app.get('/api/dashboard/timeline', async (req, res) => {
 });
 
 // 4.1 手動完了済み課題リストの永続化（メモリキャッシュ併用で毎回の同期ディスクI/Oを排除）
-const MANUAL_COMPLETED_FILE = path.join(os.homedir(), 'AppData', 'Roaming', 'Canvas Horizon', 'manual_completed.json');
+const MANUAL_COMPLETED_FILE = path.join(getUserDataDir(), 'manual_completed.json');
 let cachedManualCompleted = null;
 
 app.get('/api/assignments/manual-completed', (req, res) => {
@@ -373,7 +384,7 @@ app.post('/api/courses/:courseId/assignments/:assignmentId/submit-text', async (
 });
 
 // PDFキャッシュディレクトリ（ディスクキャッシュで2回目以降の表示遅延をゼロに）
-const PDF_CACHE_DIR = path.join(os.tmpdir(), 'canvas_horizon_pdf_cache');
+const PDF_CACHE_DIR = path.join(os.tmpdir(), 'horizon_pdf_cache');
 try { fs.mkdirSync(PDF_CACHE_DIR, { recursive: true }); } catch (e) {}
 
 // ファイルが有効なPDF（%PDFマジックバイトを含む）か検証し、破損キャッシュは自動排除
@@ -877,7 +888,7 @@ if (pdfCleanTimer.unref) pdfCleanTimer.unref();
 const pendingPdfDownloads = new Map();
 
 /**
- * PDFファイルをローカルディスクキャッシュ (%TEMP%/canvas_horizon_pdf_cache/{fileId}.pdf) に保存・確保
+ * PDFファイルをローカルディスクキャッシュ (%TEMP%/horizon_pdf_cache/{fileId}.pdf) に保存・確保
  * 複数リクエスト・Range要求が同時に来ても一度だけ完全ダウンロードを行い競合を防止
  */
 async function ensurePdfCached(fileId, targetUrl, courseId, fallbackName) {
@@ -1806,15 +1817,17 @@ app.post('/api/files/download-zip', async (req, res) => {
 
 // 12. 設定の取得と保存
 app.get('/api/config', (req, res) => {
-  res.json({ success: true, config: loadConfig() });
+  res.json({ success: true, config: toPublicConfig(loadConfig()) });
 });
 
 app.post('/api/config', (req, res) => {
   try {
     const current = loadConfig();
+    const incomingToken = req.body.apiToken !== undefined ? String(req.body.apiToken).trim() : undefined;
+    const isTokenUpdated = Boolean(incomingToken && !incomingToken.includes('•') && incomingToken !== current.apiToken);
     const isCredentialsChanged = Boolean(
       (req.body.baseUrl !== undefined && req.body.baseUrl !== current.baseUrl) ||
-      (req.body.apiToken !== undefined && req.body.apiToken !== current.apiToken) ||
+      isTokenUpdated ||
       (req.body.currentQuarter !== undefined && req.body.currentQuarter !== current.currentQuarter)
     );
 
@@ -1824,7 +1837,7 @@ app.post('/api/config', (req, res) => {
     if (isCredentialsChanged) {
       canvasService.clearAllCache(true);
     }
-    res.json({ success, config: loadConfig() });
+    res.json({ success, config: toPublicConfig(loadConfig()) });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -2060,7 +2073,7 @@ app.get('/api/app/check-update', async (req, res) => {
     const pkg = require('../package.json');
     const currentVersion = `v${pkg.version}`;
     const cfg = loadConfig();
-    const repo = cfg.githubRepo || 'shizengakari/CanvasLMS-Horizon';
+    const repo = cfg.githubRepo || 'shizengakari/Horizon';
 
     // GitHub Releases API への問い合わせ
     const ghUrl = `https://api.github.com/repos/${repo}/releases/latest`;
@@ -2070,7 +2083,7 @@ app.get('/api/app/check-update', async (req, res) => {
     try {
       const resp = await fetch(ghUrl, {
         headers: {
-          'User-Agent': 'CanvasHorizon-App',
+          'User-Agent': 'Horizon-App',
           'Accept': 'application/vnd.github.v3+json',
           'Cache-Control': 'no-cache, no-store, must-revalidate',
           'Pragma': 'no-cache'
@@ -2150,7 +2163,7 @@ function startServer(port = PORT) {
   return new Promise((resolve, reject) => {
     const server = app.listen(port, () => {
       currentPort = server.address().port;
-      console.log(`Canvas Horizon API Server running at http://localhost:${currentPort}`);
+      console.log(`Horizon API Server running at http://localhost:${currentPort}`);
       resolve(server);
     }).on('error', err => {
       if (err.code === 'EADDRINUSE') {

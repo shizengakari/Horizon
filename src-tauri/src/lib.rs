@@ -180,7 +180,7 @@ pub async fn check_for_updates_impl(app: Option<&tauri::AppHandle>) -> Value {
 
     let cfg = config::load_config();
     let repo = if cfg.github_repo.trim().is_empty() {
-        "shizengakari/CanvasLMS-Horizon".to_string()
+        "shizengakari/Horizon".to_string()
     } else {
         cfg.github_repo.trim().to_string()
     };
@@ -188,7 +188,7 @@ pub async fn check_for_updates_impl(app: Option<&tauri::AppHandle>) -> Value {
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
-        .user_agent("CanvasHorizon-Rust-Updater")
+        .user_agent("Horizon-Rust-Updater")
         .build()
         .unwrap_or_else(|_| reqwest::Client::new());
 
@@ -225,7 +225,7 @@ pub async fn check_for_updates_impl(app: Option<&tauri::AppHandle>) -> Value {
     let html_url = release
         .get("html_url")
         .and_then(|v| v.as_str())
-        .unwrap_or("https://github.com/shizengakari/CanvasLMS-Horizon/releases/latest")
+        .unwrap_or("https://github.com/shizengakari/Horizon/releases/latest")
         .to_string();
 
     if latest_version.is_empty() || server::compare_semver(latest_version, server::APP_VERSION) <= 0
@@ -255,7 +255,10 @@ pub async fn check_for_updates_impl(app: Option<&tauri::AppHandle>) -> Value {
         .find(|a| {
             a.get("name")
                 .and_then(|v| v.as_str())
-                .map(|n| n.eq_ignore_ascii_case("canvas-horizon.exe"))
+                .map(|n| {
+                    n.eq_ignore_ascii_case("horizon.exe")
+                        || n.eq_ignore_ascii_case("canvas-horizon.exe")
+                })
                 .unwrap_or(false)
         })
         .or_else(|| {
@@ -349,8 +352,8 @@ pub async fn start_download_update_impl(app: Option<&tauri::AppHandle>) -> Value
         return json!({ "success": false, "error": msg });
     }
 
-    let temp_path = update_dir.join("canvas-horizon.update.exe.tmp");
-    let final_path = update_dir.join("canvas-horizon.update.exe");
+    let temp_path = update_dir.join("horizon.update.exe.tmp");
+    let final_path = update_dir.join("horizon.update.exe");
     let _ = fs::remove_file(&temp_path);
 
     dispatch_update_status(
@@ -366,7 +369,7 @@ pub async fn start_download_update_impl(app: Option<&tauri::AppHandle>) -> Value
 
     let client = reqwest::Client::builder()
         .timeout(Duration::from_secs(180))
-        .user_agent("CanvasHorizon-Rust-Updater")
+        .user_agent("Horizon-Rust-Updater")
         .build()
         .unwrap_or_else(|_| reqwest::Client::new());
 
@@ -504,6 +507,7 @@ pub fn cleanup_old_executables() {
             }
         }
         let update_dir = get_pending_update_dir();
+        let _ = fs::remove_file(update_dir.join("horizon.update.exe.tmp"));
         let _ = fs::remove_file(update_dir.join("canvas-horizon.update.exe.tmp"));
     });
 }
@@ -513,7 +517,7 @@ pub fn quit_and_install_impl() -> bool {
         .lock()
         .ok()
         .and_then(|g| g.as_ref().and_then(|p| p.ready_exe_path.clone()))
-        .unwrap_or_else(|| get_pending_update_dir().join("canvas-horizon.update.exe"));
+        .unwrap_or_else(|| get_pending_update_dir().join("horizon.update.exe"));
 
     if ready_exe.exists() && is_valid_pe_executable(&ready_exe) {
         unblock_windows_executable(&ready_exe);
@@ -684,7 +688,7 @@ pub fn run() {
         .expect("Valid localhost URL");
 
       let _main_window = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(app_url))
-        .title("Canvas Horizon")
+        .title("Horizon")
         .inner_size(1380.0, 900.0)
         .min_inner_size(1024.0, 700.0)
         .center()
@@ -722,5 +726,5 @@ pub fn run() {
       Ok(())
     })
     .run(tauri::generate_context!())
-    .expect("error while running Canvas Horizon Tauri application");
+    .expect("error while running Horizon Tauri application");
 }

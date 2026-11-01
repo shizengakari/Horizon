@@ -5,7 +5,7 @@
   <script>
     (function() {
       try {
-        var t = localStorage.getItem('canvas_horizon_theme');
+        var t = localStorage.getItem('horizon_theme') || localStorage.getItem('canvas_horizon_theme');
         if (t === 'light' || t === 'dark') {
           document.documentElement.setAttribute('data-theme', t);
         }
@@ -14,14 +14,14 @@
   </script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#111827">
-  <title>Canvas Horizon</title>
+  <title>Horizon</title>
   <link rel="icon" type="image/png" href="icons/icon.png">
   <link rel="apple-touch-icon" href="icons/icon.png">
   <link rel="manifest" href="manifest.json">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&family=Plus+Jakarta+Sans:wght@500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=1.4.8">
+  <link rel="stylesheet" href="css/style.css?v=1.4.9">
 </head>
 <body>
   <canvas id="confetti-canvas"></canvas>
@@ -286,30 +286,30 @@
                 <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               </div>
               <div class="welcome-banner-content">
-                <h4>Canvas Horizon へようこそ</h4>
-                <p>ご利用を開始するには、大学の Canvas LMS URL と API トークンを入力して [保存] をクリックしてください。</p>
+                <h4>Horizon へようこそ</h4>
+                <p>ご利用を開始するには、接続先の Base URL と API トークンを設定して [保存] をクリックしてください。</p>
               </div>
             </div>
 
             <!-- 連携アカウント情報 -->
             <div class="setting-account-card" id="settings-account-card" style="display: none;">
               <span class="status-indicator-dot online"></span>
-              <span class="setting-account-status-text" id="settings-user-name">連携済み <strong>Canvas ユーザー</strong> としてログイン中</span>
+              <span class="setting-account-status-text" id="settings-user-name">連携済み <strong>ユーザー</strong> としてログイン中</span>
             </div>
 
             <div class="setting-item">
-              <label class="setting-label">Canvas LMS Base URL</label>
-              <input type="text" class="setting-input" id="cfg-base-url" placeholder="https://<大学名>.instructure.com (大学のCanvasログインURL)">
+              <label class="setting-label">Base URL</label>
+              <input type="text" class="setting-input" id="cfg-base-url" placeholder="https://example.instructure.com">
               <span style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">
-                お使いの大学の Canvas LMS のトップページURLを入力してください。
+                接続先のトップページ URL を入力してください（所属機関の利用規約・APIポリシーを遵守してください）。
               </span>
             </div>
 
             <div class="setting-item">
-              <label class="setting-label">Canvas API Token</label>
-              <input type="password" class="setting-input" id="cfg-api-token" placeholder="Canvas APIアクセストークン">
+              <label class="setting-label">API Token</label>
+              <input type="password" class="setting-input" id="cfg-api-token" placeholder="APIアクセストークン（暗号化してローカル保存されます）">
               <span style="font-size: 11.5px; color: var(--text-muted); margin-top: 4px;">
-                Canvas LMSの [アカウント] ➔ [設定] ➔ [新しいアクセストークン] から生成して貼り付けてください。
+                入力されたトークンおよび接続設定は暗号化され、ローカル環境（AppData/Roaming/Horizon）にのみ保存されます。
               </span>
             </div>
 
@@ -826,14 +826,14 @@
   <div class="toast-container" id="toast-container"></div>
 
   <!-- アプリケーションロジック -->
-  <script src="js/app.js?v=1.4.8"></script>
+  <script src="js/app.js?v=1.4.9"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         if ('caches' in window && (location.hostname === '127.0.0.1' || location.hostname === 'localhost')) {
           caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => {});
         }
-        navigator.serviceWorker.register('/sw.js?v=1.4.8').then((reg) => {
+        navigator.serviceWorker.register('/sw.js?v=1.4.9').then((reg) => {
           reg.update().catch(() => {});
         }).catch((err) => {
           console.debug('ServiceWorker registration skipped/failed:', err);

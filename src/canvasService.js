@@ -1,4 +1,4 @@
-const { loadConfig, saveConfig } = require('./config');
+const { loadConfig, saveConfig, getUserDataDir } = require('./config');
 const archiverModule = require('archiver');
 const ZipArchive = archiverModule.ZipArchive || (typeof archiverModule === 'function' ? archiverModule : null);
 const { Readable } = require('stream');
@@ -161,7 +161,9 @@ class CanvasService {
     this.filesForbiddenCourses = new Set(); // /files API が 403/401 を返すコースのネガティブキャッシュ
     this._saveCacheTimer = null;
 
-    const userDir = path.join(os.homedir(), 'AppData', 'Roaming', 'Canvas Horizon');
+    const userDir = typeof getUserDataDir === 'function'
+      ? getUserDataDir()
+      : path.join(os.homedir(), 'AppData', 'Roaming', 'Horizon');
     if (!fs.existsSync(userDir)) {
       try { fs.mkdirSync(userDir, { recursive: true }); } catch (e) {}
     }
@@ -487,7 +489,7 @@ class CanvasService {
           clearTimeout(timeoutId);
 
           if (res.status === 401) {
-            throw new Error('Canvas APIトークンが無効または期限切れです。設定を確認してください。');
+            throw new Error('[401] APIトークンが無効または期限切れです。設定画面から新しいトークンを入力して保存してください。');
           }
 
           // レート制限（429 または 403 Rate Limit）の自動リトライ
@@ -593,7 +595,8 @@ class CanvasService {
       this.saveDiskCacheDebounced();
       return profile;
     } catch (err) {
-      if (this.cache.profile) {
+      const msg = String(err?.message || '');
+      if (!msg.includes('401') && !msg.includes('トークンが無効') && !msg.includes('期限切れ') && this.cache.profile) {
         console.warn('Canvas profile fetch failed, using cached profile:', err.message);
         return this.cache.profile;
       }
@@ -662,7 +665,8 @@ class CanvasService {
       this.saveDiskCacheDebounced();
       return formatted;
     } catch (err) {
-      if (this.cache.courses && this.cache.courses.length > 0) {
+      const msg = String(err?.message || '');
+      if (!msg.includes('401') && !msg.includes('トークンが無効') && !msg.includes('期限切れ') && this.cache.courses && this.cache.courses.length > 0) {
         console.warn('Canvas courses fetch failed, using cached courses fallback:', err.message);
         return this.cache.courses;
       }

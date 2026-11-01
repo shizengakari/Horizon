@@ -22,7 +22,7 @@ use tokio::io::AsyncWriteExt;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
-pub const APP_VERSION: &str = "1.4.8";
+pub const APP_VERSION: &str = "1.4.9";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DownloadJob {
@@ -496,12 +496,13 @@ pub fn compare_semver(a: &str, b: &str) -> i32 {
 async fn api_get_config() -> Json<Value> {
     let cfg = load_config();
     let is_configured = !cfg.base_url.is_empty() && !cfg.api_token.is_empty();
+    let masked = mask_token(&cfg.api_token);
     let config_obj = json!({
       "baseUrl": cfg.base_url,
-      "apiToken": cfg.api_token,
+      "apiToken": masked,
       "hasToken": !cfg.api_token.is_empty(),
       "isConfigured": is_configured,
-      "maskedToken": mask_token(&cfg.api_token),
+      "maskedToken": masked,
       "downloadDir": cfg.download_dir,
       "autoDownloadFolder": cfg.auto_download_folder,
       "currentQuarter": cfg.current_quarter,
@@ -515,10 +516,10 @@ async fn api_get_config() -> Json<Value> {
       "success": true,
       "config": config_obj,
       "baseUrl": cfg.base_url,
-      "apiToken": cfg.api_token,
+      "apiToken": masked,
       "hasToken": !cfg.api_token.is_empty(),
       "isConfigured": is_configured,
-      "maskedToken": mask_token(&cfg.api_token),
+      "maskedToken": masked,
       "downloadDir": cfg.download_dir,
       "autoDownloadFolder": cfg.auto_download_folder,
       "currentQuarter": cfg.current_quarter,
@@ -579,14 +580,15 @@ async fn api_post_config(State(state): State<AppState>, Json(payload): Json<Valu
     }
 
     let is_configured = !saved.base_url.is_empty() && !saved.api_token.is_empty();
+    let masked = mask_token(&saved.api_token);
     Json(json!({
       "success": true,
       "config": {
         "baseUrl": saved.base_url,
-        "apiToken": saved.api_token,
+        "apiToken": masked,
         "hasToken": !saved.api_token.is_empty(),
         "isConfigured": is_configured,
-        "maskedToken": mask_token(&saved.api_token),
+        "maskedToken": masked,
         "downloadDir": saved.download_dir,
         "autoDownloadFolder": saved.auto_download_folder,
         "currentQuarter": saved.current_quarter,
@@ -608,13 +610,13 @@ async fn api_clear_cache(State(state): State<AppState>) -> Json<Value> {
 async fn api_check_update(State(state): State<AppState>) -> Json<Value> {
     let checked_at = now_ms();
     let current_ver = format!("v{}", APP_VERSION);
-    let url = "https://api.github.com/repos/shizengakari/CanvasLMS-Horizon/releases/latest";
+    let url = "https://api.github.com/repos/shizengakari/Horizon/releases/latest";
     let res = state
         .canvas
         .client
         .get(url)
         .header("Accept", "application/vnd.github+json")
-        .header("User-Agent", "CanvasHorizon-Updater")
+        .header("User-Agent", "Horizon-Updater")
         .timeout(Duration::from_secs(6))
         .send()
         .await;
@@ -629,7 +631,7 @@ async fn api_check_update(State(state): State<AppState>) -> Json<Value> {
                 let html_url = data
                     .get("html_url")
                     .and_then(|v| v.as_str())
-                    .unwrap_or("https://github.com/shizengakari/CanvasLMS-Horizon/releases/latest");
+                    .unwrap_or("https://github.com/shizengakari/Horizon/releases/latest");
                 return Json(json!({
                   "success": true,
                   "hasUpdate": is_newer,
@@ -654,8 +656,8 @@ async fn api_check_update(State(state): State<AppState>) -> Json<Value> {
       "updateAvailable": false,
       "currentVersion": current_ver,
       "latestVersion": current_ver,
-      "downloadUrl": "https://github.com/shizengakari/CanvasLMS-Horizon/releases/latest",
-      "releaseUrl": "https://github.com/shizengakari/CanvasLMS-Horizon/releases/latest",
+      "downloadUrl": "https://github.com/shizengakari/Horizon/releases/latest",
+      "releaseUrl": "https://github.com/shizengakari/Horizon/releases/latest",
       "checkedAt": checked_at,
     }))
 }
@@ -663,9 +665,11 @@ async fn api_check_update(State(state): State<AppState>) -> Json<Value> {
 async fn api_get_profile(State(state): State<AppState>) -> Json<Value> {
     let cfg = load_config();
     let is_configured = !cfg.base_url.is_empty() && !cfg.api_token.is_empty();
+    let masked = mask_token(&cfg.api_token);
     let config_payload = json!({
       "baseUrl": cfg.base_url,
-      "apiToken": cfg.api_token,
+      "apiToken": masked,
+      "maskedToken": masked,
       "hasToken": !cfg.api_token.is_empty(),
       "isConfigured": is_configured,
       "theme": cfg.theme,

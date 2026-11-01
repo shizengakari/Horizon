@@ -1,8 +1,8 @@
 /**
- * Canvas Horizon - Service Worker (PWA)
+ * Horizon - Service Worker (PWA)
  */
 
-const CACHE_NAME = 'canvas-horizon-v1.4.8';
+const CACHE_NAME = 'horizon-v1.4.9';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

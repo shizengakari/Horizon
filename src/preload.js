@@ -1,5 +1,5 @@
 /**
- * Canvas Horizon - プリロードスクリプト (Preload Script)
+ * Horizon - プリロードスクリプト (Preload Script)
  * セキュアなコンテキスト分離環境において、レンダラープロセスに必要な安全なデスクトップネイティブAPIを提供します。
  */
 

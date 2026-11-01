@@ -1,6 +1,6 @@
 /**
- * Canvas Horizon - フロントエンド制御ロジック
- * 洗練されたUI/UXと高速性を備えた Canvas LMS デスクトップクライアント
+ * Horizon - フロントエンド制御ロジック
+ * 洗練されたUI/UXと高速性を備えたデスクトップクライアント
  */
 
 // Rust (Tauri / Axum) バックエンド向けのネイティブ desktopAPI ブリッジ初期化
@@ -128,8 +128,16 @@ if (typeof window !== 'undefined' && !window.desktopAPI) {
   };
 }
 
-const STORAGE_KEY_BATTERY_MODE = 'canvas_horizon_battery_mode';
-const STORAGE_KEY_MANUAL_COMPLETED = 'canvas_horizon_manual_completed';
+const STORAGE_KEY_BATTERY_MODE = 'horizon_battery_mode';
+const STORAGE_KEY_MANUAL_COMPLETED = 'horizon_manual_completed';
+try {
+  if (!localStorage.getItem(STORAGE_KEY_BATTERY_MODE) && localStorage.getItem('canvas_horizon_battery_mode')) {
+    localStorage.setItem(STORAGE_KEY_BATTERY_MODE, localStorage.getItem('canvas_horizon_battery_mode'));
+  }
+  if (!localStorage.getItem(STORAGE_KEY_MANUAL_COMPLETED) && localStorage.getItem('canvas_horizon_manual_completed')) {
+    localStorage.setItem(STORAGE_KEY_MANUAL_COMPLETED, localStorage.getItem('canvas_horizon_manual_completed'));
+  }
+} catch (_) {}
 
 // アプリケーション全体の状態管理 (State)
 const state = {
@@ -886,7 +894,7 @@ async function downloadFilesToFolder(fileList, title, folderName) {
     return;
   }
 
-  // 場所を聞かずに即座にダウンロード開始（~/Downloads/Canvas Horizon/[科目名] に自動保存）
+  // 場所を聞かずに即座にダウンロード開始（~/Downloads/[科目名] に自動保存）
   const targetDir = null;
 
   // UIに即座に「開始中」フィードバックを表示
@@ -1273,7 +1281,7 @@ function switchView(viewName) {
         if (cfg) {
           state.config = cfg;
           if (!urlInput.value && cfg.baseUrl) urlInput.value = cfg.baseUrl;
-          if (!tokenInput.value && cfg.apiToken) tokenInput.value = cfg.apiToken;
+          if (!tokenInput.value && (cfg.maskedToken || cfg.apiToken)) tokenInput.value = cfg.maskedToken || cfg.apiToken;
           const welcomeBanner = document.getElementById('setting-welcome-banner');
           if (welcomeBanner) {
             const configured = Boolean(cfg.isConfigured || (cfg.baseUrl && (cfg.apiToken || cfg.hasToken)));
@@ -1321,7 +1329,7 @@ function setupTheme() {
   function applyTheme(theme, notify = false, persistServer = true) {
     const isDark = theme === 'dark';
     document.documentElement.setAttribute('data-theme', theme);
-    localStorage.setItem('canvas_horizon_theme', theme);
+    localStorage.setItem('horizon_theme', theme);
 
     if (persistServer) {
       api.post('/api/config', { theme }).catch(() => {});
@@ -1355,7 +1363,7 @@ function setupTheme() {
 
   window.applyAppTheme = applyTheme;
 
-  const savedTheme = localStorage.getItem('canvas_horizon_theme') || 'dark';
+  const savedTheme = localStorage.getItem('horizon_theme') || localStorage.getItem('canvas_horizon_theme') || 'dark';
   applyTheme(savedTheme, false, false);
 
   if (headerToggleBtn) {
@@ -1684,11 +1692,14 @@ async function initApp() {
         if (welcomeBanner) welcomeBanner.style.display = 'flex';
       }
     } else {
-      // プロファイル取得に失敗・オフライン等の場合
+      // プロファイル取得に失敗・オフライン・トークン期限切れ等の場合
       if (meRes?.config?.batteryMode && ['auto', 'on', 'off'].includes(meRes.config.batteryMode)) {
         state.batteryMode = meRes.config.batteryMode;
         try { localStorage.setItem(STORAGE_KEY_BATTERY_MODE, meRes.config.batteryMode); } catch (_) {}
         if (window.evaluateAppBatterySaving) window.evaluateAppBatterySaving();
+      }
+      if (meRes?.error && isTokenAuthError(meRes.error)) {
+        handleTokenExpiredUI(meRes.error);
       }
       if (isConfigured) {
         switchView('dashboard');
@@ -1847,7 +1858,7 @@ async function initApp() {
           actionBtn.disabled = false;
           actionBtn.textContent = 'ブラウザでダウンロード';
           actionBtn.onclick = () => {
-            utils.openExternalUrl(currentUpdateData.downloadUrl || 'https://github.com/shizengakari/CanvasLMS-Horizon/releases');
+            utils.openExternalUrl(currentUpdateData.downloadUrl || 'https://github.com/shizengakari/Horizon/releases');
           };
         }
       }
@@ -1875,18 +1886,82 @@ async function initApp() {
   }, 50);
 }
 
+function isTokenAuthError(errOrMsg) {
+  const msg = String(errOrMsg?.message || errOrMsg || '');
+  return msg.includes('401') || msg.includes('トークンが無効') || msg.includes('期限切れ');
+}
+
+function handleTokenExpiredUI(errMsg) {
+  const cleanMsg = 'APIトークンの有効期限が切れているか、無効になっています。設定画面から新しいトークンを入力して保存してください。';
+
+  // 1. 設定画面のアカウント状態カードを警告表示に更新
+  const accountCard = document.getElementById('settings-account-card');
+  const settingsNameEl = document.getElementById('settings-user-name');
+  if (accountCard && settingsNameEl) {
+    accountCard.style.display = 'flex';
+    const dot = accountCard.querySelector('.status-indicator-dot');
+    if (dot) {
+      dot.classList.remove('online');
+      dot.style.background = 'var(--status-urgent, #f43f5e)';
+      dot.style.boxShadow = '0 0 8px rgba(244, 63, 94, 0.5)';
+    }
+    settingsNameEl.innerHTML = `<strong style="color: var(--status-urgent, #f43f5e);">APIトークンが無効または期限切れです</strong> — 新しいトークンを入力して [保存] をクリックしてください`;
+  }
+
+  // 2. ダッシュボード（課題一覧）に期限切れカードまたは上部警告バナーを表示
+  const list = document.getElementById('main-assignment-list');
+  if (list && !document.getElementById('token-expired-alert-card')) {
+    const alertCard = document.createElement('div');
+    alertCard.id = 'token-expired-alert-card';
+    alertCard.className = 'empty-state-card';
+    alertCard.style.marginBottom = '16px';
+    alertCard.style.borderColor = 'rgba(244, 63, 94, 0.35)';
+    alertCard.innerHTML = `
+      <div class="empty-state-icon" style="color: var(--status-urgent, #f43f5e);">
+        <svg width="26" height="26" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+      </div>
+      <div class="empty-state-title">APIトークンが無効または期限切れです</div>
+      <div class="empty-state-sub">${utils.escapeHtml(cleanMsg)}</div>
+      <button type="button" class="btn-primary" style="margin-top: 14px; padding: 8px 20px; font-weight: 600;" id="btn-open-settings-for-token">設定画面でトークンを更新</button>
+    `;
+    if (!state.allAssignments || state.allAssignments.length === 0) {
+      list.innerHTML = '';
+      list.appendChild(alertCard);
+    } else {
+      list.prepend(alertCard);
+    }
+    document.getElementById('btn-open-settings-for-token')?.addEventListener('click', () => {
+      switchView('settings');
+      const tokenInput = document.getElementById('cfg-api-token');
+      if (tokenInput) {
+        tokenInput.value = '';
+        tokenInput.focus();
+      }
+    });
+  }
+}
+
 function renderProfile(profile) {
-  const defaultName = 'Canvas ユーザー';
+  const defaultName = 'ユーザー';
   let rawName = profile?.short_name || profile?.name || defaultName;
 
   // 学籍番号やクラス識別コードなどの接頭辞（例: 'B08... 氏名'）を自動除去
   let cleanName = rawName.replace(/^[A-Z0-9\-_]+[\s　]+/, '').trim();
   if (!cleanName || cleanName.length < 2) cleanName = defaultName;
 
+  const existingAlert = document.getElementById('token-expired-alert-card');
+  if (existingAlert) existingAlert.remove();
+
   // 設定画面の連携状態表示カードを表示
   const accountCard = document.getElementById('settings-account-card');
   if (accountCard) {
     accountCard.style.display = 'flex';
+    const dot = accountCard.querySelector('.status-indicator-dot');
+    if (dot) {
+      dot.classList.add('online');
+      dot.style.background = '';
+      dot.style.boxShadow = '';
+    }
   }
 
   // 設定画面のアカウント名（連携済み 〇〇 としてログイン中）
@@ -1900,13 +1975,19 @@ function renderProfile(profile) {
 async function loadCourses(forceRefresh = false) {
   try {
     const res = await api.get(`/api/courses?refresh=${forceRefresh}`);
-    if (res.success && res.courses) {
+    if (!res.success) {
+      throw new Error(res.error || '科目の取得に失敗しました');
+    }
+    if (res.courses) {
       state.courses = res.courses;
       renderSidebarCourses(res.courses);
       populateMaterialCourseSelect(res.courses);
     }
   } catch (err) {
     console.error('Failed to load courses:', err);
+    if (isTokenAuthError(err)) {
+      handleTokenExpiredUI(err.message);
+    }
   }
 }
 
@@ -2040,7 +2121,13 @@ function populateMaterialCourseSelect(courses) {
 async function loadAllAssignments(forceRefresh = false) {
   try {
     const res = await api.get(`/api/dashboard/timeline?refresh=${forceRefresh}`);
-    if (res.success && res.assignments) {
+    if (!res.success) {
+      throw new Error(res.error || '課題データの取得に失敗しました');
+    }
+    if (res.assignments) {
+      const existingAlert = document.getElementById('token-expired-alert-card');
+      if (existingAlert) existingAlert.remove();
+
       // dueTime（ミリ秒数値）を1度だけ事前キャッシュ（O(N log N)のnew Date生成を完全撲滅）
       const newItems = res.assignments;
       for (let i = 0; i < newItems.length; i++) {
@@ -2078,6 +2165,10 @@ async function loadAllAssignments(forceRefresh = false) {
     }
   } catch (err) {
     console.error('Failed to load assignments:', err);
+    if (isTokenAuthError(err)) {
+      handleTokenExpiredUI(err.message);
+      return;
+    }
     // 初回ロードで課題がまだ1件も表示されていない場合はスピナーを解除して再試行UIを表示
     if (!state.allAssignments || state.allAssignments.length === 0) {
       const list = document.getElementById('main-assignment-list');
@@ -3982,7 +4073,7 @@ function getCachedMaterialsEntry(courseId) {
 
   // 2. セッションストレージ (タブ/ウィンドウを開いている間の高速復旧)
   try {
-    const raw = sessionStorage.getItem(`canvas_horizon_materials_${cacheKey}`);
+    const raw = sessionStorage.getItem(`horizon_materials_${cacheKey}`);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.data && (Date.now() - (parsed.timestamp || 0) < CLIENT_MATERIALS_CACHE_TTL)) {
@@ -3994,7 +4085,7 @@ function getCachedMaterialsEntry(courseId) {
 
   // 3. ローカルストレージ (アプリ再起動後も即座に0msで描画可能)
   try {
-    const raw = localStorage.getItem(`canvas_horizon_materials_${cacheKey}`);
+    const raw = localStorage.getItem(`horizon_materials_${cacheKey}`);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.data && (Date.now() - (parsed.timestamp || 0) < CLIENT_MATERIALS_CACHE_TTL)) {
@@ -4030,34 +4121,34 @@ function setCachedMaterials(courseId, modules) {
   const serialized = JSON.stringify(entry);
 
   try {
-    sessionStorage.setItem(`canvas_horizon_materials_${cacheKey}`, serialized);
+    sessionStorage.setItem(`horizon_materials_${cacheKey}`, serialized);
   } catch (err) {
     // QuotaExceededError が発生した場合は古い講義資料セッションストレージキーをパージ
     try {
       for (let i = sessionStorage.length - 1; i >= 0; i--) {
         const k = sessionStorage.key(i);
-        if (k && k.startsWith('canvas_horizon_materials_')) {
+        if (k && (k.startsWith('horizon_materials_') || k.startsWith('canvas_horizon_materials_'))) {
           sessionStorage.removeItem(k);
         }
       }
-      sessionStorage.setItem(`canvas_horizon_materials_${cacheKey}`, serialized);
+      sessionStorage.setItem(`horizon_materials_${cacheKey}`, serialized);
     } catch (_) {}
   }
 
   try {
-    localStorage.setItem(`canvas_horizon_materials_${cacheKey}`, serialized);
+    localStorage.setItem(`horizon_materials_${cacheKey}`, serialized);
   } catch (err) {
     // QuotaExceededError 発生時は古い科目キャッシュを自動パージ
     try {
       const keys = [];
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
-        if (k && k.startsWith('canvas_horizon_materials_')) {
+        if (k && (k.startsWith('horizon_materials_') || k.startsWith('canvas_horizon_materials_'))) {
           keys.push(k);
         }
       }
       keys.forEach(k => localStorage.removeItem(k));
-      localStorage.setItem(`canvas_horizon_materials_${cacheKey}`, serialized);
+      localStorage.setItem(`horizon_materials_${cacheKey}`, serialized);
     } catch (_) {}
   }
 }
@@ -4068,10 +4159,10 @@ function invalidateCourseMaterialsCache(courseId) {
   const cacheKey = String(courseId);
   state.materialsCache.delete(cacheKey);
   try {
-    sessionStorage.removeItem(`canvas_horizon_materials_${cacheKey}`);
+    sessionStorage.removeItem(`horizon_materials_${cacheKey}`);
   } catch (_) {}
   try {
-    localStorage.removeItem(`canvas_horizon_materials_${cacheKey}`);
+    localStorage.removeItem(`horizon_materials_${cacheKey}`);
   } catch (_) {}
 }
 
@@ -5955,7 +6046,7 @@ function setupSettingsEvents() {
     if (res && res.success && cfg) {
       state.config = cfg;
       document.getElementById('cfg-base-url').value = cfg.baseUrl || '';
-      document.getElementById('cfg-api-token').value = cfg.apiToken || '';
+      document.getElementById('cfg-api-token').value = cfg.maskedToken || cfg.apiToken || '';
       if (cfg.currentQuarter) {
         document.getElementById('cfg-quarter').value = cfg.currentQuarter;
         state.currentQuarter = cfg.currentQuarter;
@@ -5982,8 +6073,8 @@ function setupSettingsEvents() {
     const apiToken = document.getElementById('cfg-api-token').value.trim();
     const currentQuarter = document.getElementById('cfg-quarter').value.trim();
 
-    if (!baseUrl || !apiToken) {
-      showToast('Canvas URLとAPIトークンを入力してください', 'error');
+    if (!baseUrl || (!apiToken && !state.config?.hasToken)) {
+      showToast('Base URLとAPIトークンを入力してください', 'error');
       return;
     }
 
@@ -6035,7 +6126,7 @@ function setupSettingsEvents() {
       state.materialsCache.clear();
       try {
         Object.keys(sessionStorage).forEach(k => {
-          if (k.startsWith('canvas_horizon_materials_')) sessionStorage.removeItem(k);
+          if (k.startsWith('horizon_materials_') || k.startsWith('canvas_horizon_materials_')) sessionStorage.removeItem(k);
         });
       } catch (_) {}
       await api.post('/api/cache/clear', {});
@@ -6119,7 +6210,7 @@ function showUpdateModal(updateData) {
   if (manualLink) {
     manualLink.onclick = (e) => {
       e.preventDefault();
-      const url = updateData.downloadUrl || updateData.zipUrl || 'https://github.com/shizengakari/CanvasLMS-Horizon/releases';
+      const url = updateData.downloadUrl || updateData.zipUrl || 'https://github.com/shizengakari/Horizon/releases';
       utils.openExternalUrl(url);
     };
   }
@@ -6163,7 +6254,7 @@ function showUpdateModal(updateData) {
             actionBtn.disabled = false;
             actionBtn.textContent = 'ブラウザでダウンロード';
             actionBtn.onclick = () => {
-              utils.openExternalUrl(updateData.downloadUrl || 'https://github.com/shizengakari/CanvasLMS-Horizon/releases');
+              utils.openExternalUrl(updateData.downloadUrl || 'https://github.com/shizengakari/Horizon/releases');
             };
           } else if (res.status === 'downloaded' || res.type === 'downloaded') {
             if (typeof window.__dispatchUpdateStatus === 'function') {
@@ -6175,7 +6266,7 @@ function showUpdateModal(updateData) {
             }
           }
         } else {
-          utils.openExternalUrl(updateData.downloadUrl || 'https://github.com/shizengakari/CanvasLMS-Horizon/releases');
+          utils.openExternalUrl(updateData.downloadUrl || 'https://github.com/shizengakari/Horizon/releases');
         }
       };
     }

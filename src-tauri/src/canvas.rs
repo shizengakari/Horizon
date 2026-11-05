@@ -101,7 +101,7 @@ impl CanvasService {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(25))
             .pool_max_idle_per_host(8)
-            .user_agent("Horizon-Rust/1.4.9")
+            .user_agent("Horizon-Rust/1.4.10")
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
 
@@ -1052,6 +1052,7 @@ impl CanvasService {
               "isLocked": locked,
               "lockedForUser": locked,
               "unlockAt": f.get("unlock_at").cloned().unwrap_or(Value::Null),
+              "lockAt": f.get("lock_at").or_else(|| f.get("lock_info").and_then(|li| li.get("lock_at"))).cloned().unwrap_or(Value::Null),
               "lockExplanation": f.get("lock_explanation").cloned().unwrap_or(Value::Null),
               "source": "files_tab",
             }),

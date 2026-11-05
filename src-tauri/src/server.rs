@@ -22,7 +22,7 @@ use tokio::io::AsyncWriteExt;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
-pub const APP_VERSION: &str = "1.4.9";
+pub const APP_VERSION: &str = "1.4.10";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DownloadJob {
@@ -942,6 +942,7 @@ async fn api_get_file_meta(
       "isLocked": is_locked,
       "lockExplanation": file_data.as_ref().and_then(|fd| fd.get("lock_explanation").or_else(|| fd.get("lock_info").and_then(|li| li.get("lock_explanation")))).cloned().unwrap_or(Value::Null),
       "unlockAt": file_data.as_ref().and_then(|fd| fd.get("unlock_at").or_else(|| fd.get("lock_info").and_then(|li| li.get("unlock_at")))).cloned().unwrap_or(Value::Null),
+      "lockAt": file_data.as_ref().and_then(|fd| fd.get("lock_at").or_else(|| fd.get("lock_info").and_then(|li| li.get("lock_at")))).cloned().unwrap_or(Value::Null),
     });
 
     Json(json!({
@@ -955,6 +956,7 @@ async fn api_get_file_meta(
       "isLocked": is_locked,
       "lockExplanation": file_payload.get("lockExplanation").cloned().unwrap_or(Value::Null),
       "unlockAt": file_payload.get("unlockAt").cloned().unwrap_or(Value::Null),
+      "lockAt": file_payload.get("lockAt").cloned().unwrap_or(Value::Null),
       "file": file_payload,
     }))
 }

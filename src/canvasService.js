@@ -732,10 +732,15 @@ class CanvasService {
             name: a.name || '無題の課題',
             description: a.description || '',
             dueAt: a.due_at,
-            lockAt: a.lock_at,
-            unlockAt: a.unlock_at,
-            isLocked: Boolean(a.locked_for_user),
-            lockExplanation: a.lock_explanation || null,
+            lockAt: a.lock_at || a.lock_info?.lock_at || null,
+            unlockAt: a.unlock_at || a.lock_info?.unlock_at || null,
+            isLocked: Boolean(
+              a.locked_for_user ||
+              a.lock_info ||
+              (a.unlock_at && new Date(a.unlock_at) > new Date()) ||
+              (a.lock_at && new Date(a.lock_at) <= new Date())
+            ),
+            lockExplanation: a.lock_explanation || a.lock_info?.lock_explanation || null,
             pointsPossible: a.points_possible,
             gradingType: a.grading_type,
             submissionTypes: a.submission_types || [],
@@ -927,6 +932,7 @@ class CanvasService {
             isLocked: isItemLocked,
             lockInfo: it.lock_info || cd.lock_info || null,
             unlockAt: itemUnlockAt,
+            lockAt: itemLockAt,
             lockExplanation: it.lock_explanation || it.lock_info?.lock_explanation || cd.lock_explanation || null
           };
         })
@@ -977,6 +983,7 @@ class CanvasService {
               ),
               lockedForUser: Boolean(f.locked_for_user || f.locked),
               unlockAt: f.unlock_at || f.lock_info?.unlock_at || null,
+              lockAt: f.lock_at || f.lock_info?.lock_at || null,
               lockExplanation: f.lock_explanation || f.lock_info?.lock_explanation || null,
               source: 'files'
             });
@@ -1015,6 +1022,7 @@ class CanvasService {
             isLocked: Boolean(it.isLocked || m.isLocked),
             lockedForUser: Boolean(it.lockedForUser || it.isLocked || m.isLocked),
             unlockAt: it.unlockAt || null,
+            lockAt: it.lockAt || null,
             lockExplanation: it.lockExplanation || null,
             moduleName: m.name,
             source: 'module'
@@ -1076,7 +1084,8 @@ class CanvasService {
           published: it.published,
           isLocked: it.isLocked,
           lockedForUser: it.lockedForUser,
-          unlockAt: it.unlockAt,
+          unlockAt: it.unlockAt || null,
+          lockAt: it.lockAt || null,
           lockExplanation: it.lockExplanation,
           workflowState: it.workflowState
         };
@@ -1105,6 +1114,7 @@ class CanvasService {
             isLocked: Boolean(it.isLocked || resolved.isLocked || it.lockedForUser || resolved.lockedForUser || m.isLocked),
             lockedForUser: Boolean(it.lockedForUser || resolved.lockedForUser || it.isLocked || resolved.isLocked || m.isLocked),
             unlockAt: resolved.unlockAt || it.unlockAt || null,
+            lockAt: resolved.lockAt || it.lockAt || null,
             lockExplanation: resolved.lockExplanation || it.lockExplanation || null
           });
         } else if (it.type === 'Page') {
@@ -1161,6 +1171,7 @@ class CanvasService {
             ...commonProps,
             isLocked: Boolean(it.isLocked || assign?.isLocked),
             unlockAt: assign?.unlockAt || it.unlockAt || null,
+            lockAt: assign?.lockAt || it.lockAt || null,
             lockExplanation: assign?.lockExplanation || it.lockExplanation || null
           });
         } else if (it.type === 'Discussion' || it.type === 'DiscussionTopic') {
@@ -1236,6 +1247,7 @@ class CanvasService {
           isLocked: Boolean(f.isLocked),
           lockedForUser: Boolean(f.lockedForUser),
           unlockAt: f.unlockAt || null,
+          lockAt: f.lockAt || null,
           lockExplanation: f.lockExplanation || null,
           type: 'File'
         }))
@@ -1260,7 +1272,9 @@ class CanvasService {
               htmlUrl: p.html_url,
               isLocked: Boolean(p.locked_for_user),
               lockedForUser: Boolean(p.locked_for_user),
-              lockExplanation: p.lock_explanation || null
+              unlockAt: p.unlock_at || p.lock_info?.unlock_at || null,
+              lockAt: p.lock_at || p.lock_info?.lock_at || null,
+              lockExplanation: p.lock_explanation || p.lock_info?.lock_explanation || null
             }))
           });
         }
@@ -1301,7 +1315,7 @@ class CanvasService {
       lockedForUser: Boolean(data.locked_for_user),
       lockExplanation: data.lock_explanation || data.lock_info?.lock_explanation || null,
       unlockAt: data.unlock_at || data.lock_info?.unlock_at || null,
-      lockAt: data.lock_info?.lock_at || null
+      lockAt: data.lock_at || data.lock_info?.lock_at || null
     };
   }
 
@@ -1315,7 +1329,9 @@ class CanvasService {
       url: data.html_url || null,
       author: data.user_name || (data.author ? data.author.display_name : null),
       lockedForUser: Boolean(data.locked_for_user),
-      lockExplanation: data.lock_explanation || data.lock_info?.lock_explanation || null
+      lockExplanation: data.lock_explanation || data.lock_info?.lock_explanation || null,
+      unlockAt: data.unlock_at || data.lock_info?.unlock_at || null,
+      lockAt: data.lock_at || data.lock_info?.lock_at || null
     };
   }
 
@@ -1617,7 +1633,12 @@ class CanvasService {
         assignmentPointsPossible: assignObj?.points_possible ?? null,
         assignmentSubmissionTypes: assignObj?.submission_types || null,
         assignmentHtmlUrl: assignObj?.html_url || null,
-        assignmentIsLocked: Boolean(assignObj?.locked_for_user),
+        assignmentIsLocked: Boolean(
+          assignObj?.locked_for_user ||
+          assignObj?.lock_info ||
+          (assignObj?.unlock_at && new Date(assignObj.unlock_at) > new Date()) ||
+          (assignObj?.lock_at && new Date(assignObj.lock_at) <= new Date())
+        ),
         assignmentLockedForUser: Boolean(assignObj?.locked_for_user),
         assignmentLockExplanation: assignObj?.lock_explanation || assignObj?.lock_info?.lock_explanation || null,
         assignmentUnlockAt: assignObj?.unlock_at || assignObj?.lock_info?.unlock_at || null,

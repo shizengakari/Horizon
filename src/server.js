@@ -290,16 +290,18 @@ app.get('/api/courses/:courseId/pages/:pageUrl', async (req, res) => {
     const fallbackUrl = cfg.baseUrl
       ? `${cfg.baseUrl.replace(/\/+$/, '')}/courses/${req.params.courseId}/pages/${encodeURIComponent(cleanSlug)}`
       : null;
+    const fallbackPage = {
+      title: cleanSlug,
+      body: '',
+      updatedAt: null,
+      url: fallbackUrl,
+      htmlUrl: fallbackUrl,
+      lockedForUser: true,
+      lockExplanation: 'このページは現在Canvas上でロック（閲覧期間外）または非公開に設定されています。'
+    };
     res.json({
       success: true,
-      page: {
-        title: cleanSlug,
-        body: '',
-        updatedAt: null,
-        url: fallbackUrl,
-        lockedForUser: true,
-        lockExplanation: 'このページは現在Canvas上でロック（閲覧期間外）または非公開に設定されています。'
-      }
+      page: fallbackPage
     });
   }
 });
@@ -314,16 +316,19 @@ app.get('/api/courses/:courseId/discussions/:topicId', async (req, res) => {
     const fallbackUrl = cfg.baseUrl
       ? `${cfg.baseUrl.replace(/\/+$/, '')}/courses/${req.params.courseId}/discussion_topics/${encodeURIComponent(req.params.topicId)}`
       : null;
+    const fallbackDiscussion = {
+      title: 'ディスカッション',
+      body: '',
+      updatedAt: null,
+      url: fallbackUrl,
+      htmlUrl: fallbackUrl,
+      lockedForUser: true,
+      lockExplanation: 'このディスカッションは現在Canvas上でロックまたは非公開に設定されています。'
+    };
     res.json({
       success: true,
-      page: {
-        title: 'ディスカッション',
-        body: '',
-        updatedAt: null,
-        url: fallbackUrl,
-        lockedForUser: true,
-        lockExplanation: 'このディスカッションは現在Canvas上でロックまたは非公開に設定されています。'
-      }
+      page: fallbackDiscussion,
+      discussion: fallbackDiscussion
     });
   }
 });
@@ -1024,7 +1029,8 @@ app.get('/api/files/meta', async (req, res) => {
       url: fileData?.url || targetUrl || null,
       isLocked: Boolean(fileData?.locked_for_user || fileData?.hidden_for_user),
       lockExplanation: fileData?.lock_explanation || fileData?.lock_info?.lock_explanation || null,
-      unlockAt: fileData?.unlock_at || fileData?.lock_info?.unlock_at || null
+      unlockAt: fileData?.unlock_at || fileData?.lock_info?.unlock_at || null,
+      lockAt: fileData?.lock_at || fileData?.lock_info?.lock_at || null
     };
 
     return res.json({

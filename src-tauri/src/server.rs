@@ -827,7 +827,34 @@ async fn api_get_discussion_topic(
           "page": discussion,
           "discussion": discussion,
         })),
-        Err(err) => Json(json!({ "success": false, "error": err })),
+        Err(_) => {
+            let cfg = load_config();
+            let base = cfg.base_url.trim().trim_end_matches('/');
+            let fallback_url = if base.is_empty() {
+                Value::Null
+            } else {
+                json!(format!(
+                    "{}/courses/{}/discussion_topics/{}",
+                    base,
+                    course_id,
+                    urlencoding::encode(&topic_id)
+                ))
+            };
+            let fallback = json!({
+              "title": "ディスカッション",
+              "body": "",
+              "updatedAt": Value::Null,
+              "url": fallback_url,
+              "htmlUrl": fallback_url,
+              "lockedForUser": true,
+              "lockExplanation": "このディスカッションは現在Canvas上でロックまたは非公開に設定されています。",
+            });
+            Json(json!({
+              "success": true,
+              "page": fallback,
+              "discussion": fallback,
+            }))
+        }
     }
 }
 
@@ -837,7 +864,33 @@ async fn api_get_page(
 ) -> Json<Value> {
     match state.canvas.get_page(&course_id, &page_url).await {
         Ok(page) => Json(json!({ "success": true, "page": page })),
-        Err(err) => Json(json!({ "success": false, "error": err })),
+        Err(_) => {
+            let cfg = load_config();
+            let base = cfg.base_url.trim().trim_end_matches('/');
+            let clean_slug = urlencoding::decode(page_url.trim())
+                .map(|s| s.into_owned())
+                .unwrap_or_else(|_| page_url.trim().to_string());
+            let fallback_url = if base.is_empty() {
+                Value::Null
+            } else {
+                json!(format!(
+                    "{}/courses/{}/pages/{}",
+                    base,
+                    course_id,
+                    urlencoding::encode(&clean_slug)
+                ))
+            };
+            let fallback = json!({
+              "title": clean_slug,
+              "body": "",
+              "updatedAt": Value::Null,
+              "url": fallback_url,
+              "htmlUrl": fallback_url,
+              "lockedForUser": true,
+              "lockExplanation": "このページは現在Canvas上でロック（閲覧期間外）または非公開に設定されています。",
+            });
+            Json(json!({ "success": true, "page": fallback }))
+        }
     }
 }
 
@@ -935,14 +988,14 @@ async fn api_get_file_meta(
     let file_payload = json!({
       "id": if file_id.is_empty() { Value::Null } else { json!(file_id) },
       "displayName": display_name,
-      "filename": file_data.as_ref().and_then(|fd| fd.get("filename").or_else(|| fd.get("display_name"))).cloned().unwrap_or_else(|| json!(display_name)),
+      "filename": file_data.as_ref().and_then(|fd| crate::canvas::get_non_null(fd, "filename").or_else(|| crate::canvas::get_non_null(fd, "display_name"))).cloned().unwrap_or_else(|| json!(display_name)),
       "contentType": content_type,
       "size": file_data.as_ref().and_then(|fd| fd.get("size")).and_then(|v| v.as_u64()).unwrap_or(0),
-      "url": file_data.as_ref().and_then(|fd| fd.get("url")).cloned().unwrap_or_else(|| if target_url.is_empty() { Value::Null } else { json!(target_url) }),
+      "url": file_data.as_ref().and_then(|fd| crate::canvas::get_non_null(fd, "url")).cloned().unwrap_or_else(|| if target_url.is_empty() { Value::Null } else { json!(target_url) }),
       "isLocked": is_locked,
-      "lockExplanation": file_data.as_ref().and_then(|fd| fd.get("lock_explanation").or_else(|| fd.get("lock_info").and_then(|li| li.get("lock_explanation")))).cloned().unwrap_or(Value::Null),
-      "unlockAt": file_data.as_ref().and_then(|fd| fd.get("unlock_at").or_else(|| fd.get("lock_info").and_then(|li| li.get("unlock_at")))).cloned().unwrap_or(Value::Null),
-      "lockAt": file_data.as_ref().and_then(|fd| fd.get("lock_at").or_else(|| fd.get("lock_info").and_then(|li| li.get("lock_at")))).cloned().unwrap_or(Value::Null),
+      "lockExplanation": file_data.as_ref().and_then(|fd| crate::canvas::get_non_null(fd, "lock_explanation").or_else(|| fd.get("lock_info").and_then(|li| crate::canvas::get_non_null(li, "lock_explanation")))).cloned().unwrap_or(Value::Null),
+      "unlockAt": file_data.as_ref().and_then(|fd| crate::canvas::get_non_null(fd, "unlock_at").or_else(|| fd.get("lock_info").and_then(|li| crate::canvas::get_non_null(li, "unlock_at")))).cloned().unwrap_or(Value::Null),
+      "lockAt": file_data.as_ref().and_then(|fd| crate::canvas::get_non_null(fd, "lock_at").or_else(|| fd.get("lock_info").and_then(|li| crate::canvas::get_non_null(li, "lock_at")))).cloned().unwrap_or(Value::Null),
     });
 
     Json(json!({

@@ -3614,7 +3614,7 @@ function toggleEditorWide(forceState) {
 
 function closeAssignmentModal(preserveNav = false) {
   const modal = document.getElementById('assignment-modal');
-  const descBox = document.getElementById('modal-description');
+  const descBox = document.getElementById('modal-description-box') || document.getElementById('modal-description');
   if (modal) modal.classList.remove('open');
   if (isAssignmentFullscreen) {
     toggleAssignmentFullscreen(false);
@@ -4399,14 +4399,14 @@ async function loadCourseMaterialsGrouped(courseId, forceRefresh = false) {
             const newMod = res.modules[i];
             const oldItems = oldMod?.items || [];
             const newItems = newMod?.items || [];
-            if (!oldMod || oldMod.id !== newMod.id || oldMod.name !== newMod.name || oldItems.length !== newItems.length) {
+            if (!oldMod || oldMod.id !== newMod.id || oldMod.name !== newMod.name || oldMod.isLocked !== newMod.isLocked || oldMod.unlockAt !== newMod.unlockAt || oldItems.length !== newItems.length) {
               isSame = false;
               break;
             }
             for (let j = 0; j < newItems.length; j++) {
               const oi = oldItems[j];
               const ni = newItems[j];
-              if (oi.id !== ni.id || oi.title !== ni.title || oi.isSubmitted !== ni.isSubmitted || oi.isGraded !== ni.isGraded || oi.isLocked !== ni.isLocked) {
+              if (oi.id !== ni.id || oi.title !== ni.title || oi.isSubmitted !== ni.isSubmitted || oi.isGraded !== ni.isGraded || oi.isLocked !== ni.isLocked || oi.unlockAt !== ni.unlockAt || oi.lockAt !== ni.lockAt || oi.lockExplanation !== ni.lockExplanation) {
                 isSame = false;
                 break;
               }
@@ -4616,39 +4616,8 @@ function renderGroupedMaterials(modules) {
         (!isKnownNonPdf && (!it.contentType || it.contentType === 'application/octet-stream'))
       );
       const isPreviewableFile = isFile && (isPdf || utils.isPreviewableCategory(fileCategory));
-      const isLockedItem = Boolean(
-        it.isLocked ||
-        it.lockedForUser ||
-        m.isLocked ||
-        (it.unlockAt && new Date(it.unlockAt).getTime() > Date.now()) ||
-        (it.lockAt && new Date(it.lockAt).getTime() <= Date.now()) ||
-        (m.unlockAt && new Date(m.unlockAt).getTime() > Date.now())
-      );
 
-      const effectiveUnlockAt = it.unlockAt || (m.unlockAt && new Date(m.unlockAt).getTime() > Date.now() ? m.unlockAt : null);
-      const effectiveLockAt = it.lockAt || null;
-      const effectiveLockExplanation = it.lockExplanation || matchingAssign?.lockExplanation || (m.isLocked ? `所属モジュール「${m.name}」がロックされています` : null);
-      const lockTooltip = isLockedItem ? utils.formatLockTooltip({
-        unlockAt: effectiveUnlockAt,
-        lockAt: effectiveLockAt,
-        dueAt: it.dueAt || matchingAssign?.dueAt || null,
-        lockExplanation: effectiveLockExplanation
-      }) : '';
-
-      const card = document.createElement('div');
-      card.className = `module-file-card${isLockedItem ? ' is-locked-item' : ''}`;
-      if (isLockedItem) {
-        card.title = lockTooltip;
-      }
-
-      const extUrl = it.externalUrl || it.url || it.htmlUrl;
-      const ytId = utils.extractYouTubeVideoId(extUrl);
-
-      // アイコンの選定
-      let iconHtml = '';
-      let iconClass = 'other';
-
-      // 提出状況の判定
+      // 提出状況および対応する課題情報の解決
       let isAssignmentSubmitted = false;
       let matchingAssign = null;
       if (isAssignment) {
@@ -4662,7 +4631,7 @@ function renderGroupedMaterials(modules) {
             (it.id && String(a.id) === String(it.id)) ||
             (a.name && a.name.trim() === title.trim())
           );
-        });
+        }) || null;
 
         const assignTargetId = matchingAssign?.id || it.assignmentId || it.contentId || it.id;
         const subObj = matchingAssign?.submission || it.submission || null;
@@ -4683,6 +4652,39 @@ function renderGroupedMaterials(modules) {
           (Array.isArray(subObj?.attachments) && subObj.attachments.length > 0)
         );
       }
+
+      const effectiveUnlockAt = it.unlockAt || matchingAssign?.unlockAt || (m.unlockAt && new Date(m.unlockAt).getTime() > Date.now() ? m.unlockAt : null);
+      const effectiveLockAt = it.lockAt || matchingAssign?.lockAt || null;
+      const isLockedItem = Boolean(
+        it.isLocked ||
+        it.lockedForUser ||
+        matchingAssign?.isLocked ||
+        m.isLocked ||
+        (effectiveUnlockAt && new Date(effectiveUnlockAt).getTime() > Date.now()) ||
+        (effectiveLockAt && new Date(effectiveLockAt).getTime() <= Date.now()) ||
+        (m.unlockAt && new Date(m.unlockAt).getTime() > Date.now())
+      );
+
+      const effectiveLockExplanation = it.lockExplanation || matchingAssign?.lockExplanation || (m.isLocked ? `所属モジュール「${m.name}」がロックされています` : null);
+      const lockTooltip = isLockedItem ? utils.formatLockTooltip({
+        unlockAt: effectiveUnlockAt,
+        lockAt: effectiveLockAt,
+        dueAt: it.dueAt || matchingAssign?.dueAt || null,
+        lockExplanation: effectiveLockExplanation
+      }) : '';
+
+      const card = document.createElement('div');
+      card.className = `module-file-card${isLockedItem ? ' is-locked-item' : ''}`;
+      if (isLockedItem) {
+        card.title = lockTooltip;
+      }
+
+      const extUrl = it.externalUrl || it.url || it.htmlUrl;
+      const ytId = utils.extractYouTubeVideoId(extUrl);
+
+      // アイコンの選定
+      let iconHtml = '';
+      let iconClass = 'other';
 
       if (isPdf) {
         iconClass = 'pdf';
@@ -5161,7 +5163,11 @@ async function openPageModal(courseId, pageUrl, fallbackTitle, itemMeta = null) 
       } else if (res.page.lockedForUser || res.page.lockExplanation || itemMeta?.lockExplanation || itemMeta?.isLocked) {
         bodyEl.innerHTML = renderLockedContentNotice(
           res.page.lockExplanation || itemMeta?.lockExplanation || 'このページは現在ロックされているか公開期間外です。',
-          htmlUrl
+          htmlUrl,
+          {
+            unlockAt: res.page.unlockAt || itemMeta?.unlockAt || null,
+            lockAt: res.page.lockAt || itemMeta?.lockAt || null
+          }
         );
         setupContentLinks(bodyEl, courseId);
       } else {
@@ -5172,7 +5178,10 @@ async function openPageModal(courseId, pageUrl, fallbackTitle, itemMeta = null) 
     }
   } catch (err) {
     if (itemMeta?.lockExplanation || itemMeta?.isLocked) {
-      bodyEl.innerHTML = renderLockedContentNotice(itemMeta.lockExplanation, itemMeta.htmlUrl);
+      bodyEl.innerHTML = renderLockedContentNotice(itemMeta.lockExplanation, itemMeta.htmlUrl, {
+        unlockAt: itemMeta.unlockAt || null,
+        lockAt: itemMeta.lockAt || null
+      });
       setupContentLinks(bodyEl, courseId);
     } else {
       bodyEl.innerHTML = `<div style="color: var(--status-urgent); padding: 16px;">ページ取得エラー: ${utils.escapeHtml(err.message)}</div>`;
@@ -5203,7 +5212,7 @@ async function openDiscussionModal(courseId, topicId, fallbackTitle, itemMeta = 
     const res = await api.get(`/api/courses/${courseId}/discussions/${encodeURIComponent(topicId)}`);
     if (res.success && res.discussion) {
       titleEl.textContent = res.discussion.title || fallbackTitle || 'ディスカッション';
-      const htmlUrl = res.discussion.htmlUrl || itemMeta?.htmlUrl || null;
+      const htmlUrl = res.discussion.htmlUrl || res.discussion.url || itemMeta?.htmlUrl || null;
       if (extBtn && htmlUrl) {
         extBtn.href = htmlUrl;
         extBtn.style.display = 'inline-flex';
@@ -5211,8 +5220,15 @@ async function openDiscussionModal(courseId, topicId, fallbackTitle, itemMeta = 
       if (res.discussion.body && res.discussion.body.trim()) {
         bodyEl.innerHTML = utils.formatHtmlWithLinks(res.discussion.body);
         setupContentLinks(bodyEl, courseId);
-      } else if (res.discussion.lockedForUser || res.discussion.lockExplanation) {
-        bodyEl.innerHTML = renderLockedContentNotice(res.discussion.lockExplanation, htmlUrl);
+      } else if (res.discussion.lockedForUser || res.discussion.lockExplanation || itemMeta?.lockExplanation || itemMeta?.isLocked) {
+        bodyEl.innerHTML = renderLockedContentNotice(
+          res.discussion.lockExplanation || itemMeta?.lockExplanation || 'このディスカッションは現在ロックされているか公開期間外です。',
+          htmlUrl,
+          {
+            unlockAt: res.discussion.unlockAt || itemMeta?.unlockAt || null,
+            lockAt: res.discussion.lockAt || itemMeta?.lockAt || null
+          }
+        );
         setupContentLinks(bodyEl, courseId);
       } else {
         bodyEl.innerHTML = '<p style="color: var(--text-muted);">本文がありません。</p>';
@@ -5221,7 +5237,15 @@ async function openDiscussionModal(courseId, topicId, fallbackTitle, itemMeta = 
       throw new Error(res.error || 'ディスカッションの取得に失敗しました');
     }
   } catch (err) {
-    bodyEl.innerHTML = `<div style="color: var(--status-urgent); padding: 16px;">取得エラー: ${utils.escapeHtml(err.message)}</div>`;
+    if (itemMeta?.lockExplanation || itemMeta?.isLocked) {
+      bodyEl.innerHTML = renderLockedContentNotice(itemMeta.lockExplanation, itemMeta.htmlUrl, {
+        unlockAt: itemMeta.unlockAt || null,
+        lockAt: itemMeta.lockAt || null
+      });
+      setupContentLinks(bodyEl, courseId);
+    } else {
+      bodyEl.innerHTML = `<div style="color: var(--status-urgent); padding: 16px;">取得エラー: ${utils.escapeHtml(err.message)}</div>`;
+    }
   }
 }
 
@@ -6686,6 +6710,18 @@ function setupCommandPalette() {
             action: () => {
               closePalette();
               const targetCourseId = it.courseId || cid;
+              const isItemLocked = Boolean(
+                it.isLocked ||
+                it.lockedForUser ||
+                m.isLocked ||
+                (it.unlockAt && new Date(it.unlockAt).getTime() > Date.now()) ||
+                (it.lockAt && new Date(it.lockAt).getTime() <= Date.now()) ||
+                (m.unlockAt && new Date(m.unlockAt).getTime() > Date.now())
+              );
+              if (isItemLocked && it.type !== 'Assignment') {
+                openLockedItemDetailModal({ ...it, courseId: targetCourseId }, { moduleUnlockAt: m.unlockAt, moduleName: m.name });
+                return;
+              }
               const fileCat = isFile ? utils.classifyFile(title, it.contentType) : 'unknown';
               if (isFile && utils.isPreviewableCategory(fileCat) && it.id) {
                 openPdfPreviewModal(`/api/files/download?id=${it.id}&courseId=${targetCourseId}&inline=true&name=${encodeURIComponent(title)}`, title, it.id, targetCourseId);
@@ -6693,6 +6729,34 @@ function setupCommandPalette() {
                 openYouTubeModal(ytId, title, extUrl);
               } else if (isPage && it.pageUrl) {
                 openPageModal(targetCourseId, it.pageUrl, title, it);
+              } else if (it.type === 'Discussion' || it.type === 'DiscussionTopic') {
+                openDiscussionModal(targetCourseId, it.topicId || it.contentId || it.id, title, it);
+              } else if (it.type === 'Assignment' || it.type === 'Quiz') {
+                const existing = (state.allAssignments || []).find(a =>
+                  String(a.courseId) === String(targetCourseId) &&
+                  (String(a.id) === String(it.assignmentId || it.contentId || it.id) || a.name === title)
+                );
+                if (existing) {
+                  openAssignmentModal(existing);
+                } else {
+                  openAssignmentModal({
+                    id: it.assignmentId || it.contentId || it.id,
+                    courseId: targetCourseId,
+                    name: title,
+                    courseName: cName,
+                    submissionTypes: it.submissionTypes || (it.type === 'Quiz' ? ['online_quiz'] : ['online_upload']),
+                    isSubmitted: Boolean(it.isSubmitted),
+                    isLocked: isItemLocked,
+                    unlockAt: it.unlockAt || m.unlockAt || null,
+                    lockAt: it.lockAt || null,
+                    dueAt: it.dueAt || null,
+                    pointsPossible: it.pointsPossible,
+                    description: it.description || '',
+                    lockExplanation: it.lockExplanation || null,
+                    htmlUrl: it.htmlUrl || it.url || '',
+                    submission: it.submission
+                  });
+                }
               } else if (isFile) {
                 downloadSingleFile({
                   id: it.id,
@@ -6700,6 +6764,8 @@ function setupCommandPalette() {
                   name: title,
                   courseId: targetCourseId
                 });
+              } else if (extUrl) {
+                utils.openExternalUrl(extUrl);
               }
             }
           });

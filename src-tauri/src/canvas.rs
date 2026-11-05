@@ -20,6 +20,10 @@ pub fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
+pub fn get_non_null<'a>(val: &'a Value, key: &str) -> Option<&'a Value> {
+    val.get(key).filter(|v| !v.is_null())
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct TimedEntry {
     pub time: u64,
@@ -659,17 +663,32 @@ impl CanvasService {
           .get("course_id")
           .cloned()
           .unwrap_or_else(|| json!(course_id));
+        let lock_at = get_non_null(&a, "lock_at")
+          .or_else(|| a.get("lock_info").and_then(|li| get_non_null(li, "lock_at")))
+          .cloned()
+          .unwrap_or(Value::Null);
+        let unlock_at = get_non_null(&a, "unlock_at")
+          .or_else(|| a.get("lock_info").and_then(|li| get_non_null(li, "unlock_at")))
+          .cloned()
+          .unwrap_or(Value::Null);
+        let lock_exp = get_non_null(&a, "lock_explanation")
+          .or_else(|| a.get("lock_info").and_then(|li| get_non_null(li, "lock_explanation")))
+          .cloned()
+          .unwrap_or(Value::Null);
+        let is_locked = a.get("locked_for_user").and_then(|v| v.as_bool()).unwrap_or(false)
+          || get_non_null(&a, "lock_info").is_some();
 
         json!({
           "id": a.get("id").cloned().unwrap_or(Value::Null),
           "courseId": course_id_val,
+          "quizId": get_non_null(&a, "quiz_id").cloned().unwrap_or(Value::Null),
           "name": a.get("name").and_then(|v| v.as_str()).unwrap_or("無題の課題"),
           "description": a.get("description").and_then(|v| v.as_str()).unwrap_or(""),
           "dueAt": a.get("due_at").cloned().unwrap_or(Value::Null),
-          "lockAt": a.get("lock_at").cloned().unwrap_or(Value::Null),
-          "unlockAt": a.get("unlock_at").cloned().unwrap_or(Value::Null),
-          "isLocked": a.get("locked_for_user").and_then(|v| v.as_bool()).unwrap_or(false),
-          "lockExplanation": a.get("lock_explanation").cloned().unwrap_or(Value::Null),
+          "lockAt": lock_at,
+          "unlockAt": unlock_at,
+          "isLocked": is_locked,
+          "lockExplanation": lock_exp,
           "pointsPossible": a.get("points_possible").cloned().unwrap_or(Value::Null),
           "gradingType": a.get("grading_type").cloned().unwrap_or(Value::Null),
           "submissionTypes": a.get("submission_types").cloned().unwrap_or_else(|| json!([])),
@@ -880,8 +899,9 @@ impl CanvasService {
       .unwrap_or_default()
       .into_iter()
       .map(|m| {
-        let mod_locked = m.get("locked_for_user").and_then(|v| v.as_bool()).unwrap_or(false);
-        let mod_unlock_at = m.get("unlock_at").cloned().unwrap_or(Value::Null);
+        let mod_locked = m.get("locked_for_user").and_then(|v| v.as_bool()).unwrap_or(false)
+          || m.get("state").and_then(|v| v.as_str()) == Some("locked");
+        let mod_unlock_at = get_non_null(&m, "unlock_at").cloned().unwrap_or(Value::Null);
         let items: Vec<Value> = m
           .get("items")
           .and_then(|v| v.as_array())
@@ -895,49 +915,53 @@ impl CanvasService {
                 .and_then(|c| c.get("locked_for_user"))
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false)
+              || get_non_null(&it, "lock_info").is_some()
+              || cd.and_then(|c| get_non_null(c, "lock_info")).is_some()
               || mod_locked;
-            let lock_exp = it
-              .get("lock_explanation")
-              .or_else(|| cd.and_then(|c| c.get("lock_explanation")))
+            let lock_exp = get_non_null(&it, "lock_explanation")
+              .or_else(|| it.get("lock_info").and_then(|li| get_non_null(li, "lock_explanation")))
+              .or_else(|| cd.and_then(|c| get_non_null(c, "lock_explanation")))
               .or_else(|| {
                 cd.and_then(|c| c.get("lock_info"))
-                  .and_then(|li| li.get("lock_explanation"))
+                  .and_then(|li| get_non_null(li, "lock_explanation"))
               })
               .cloned()
               .unwrap_or(Value::Null);
-            let unlock_at = cd
-              .and_then(|c| c.get("unlock_at"))
+            let unlock_at = get_non_null(&it, "unlock_at")
+              .or_else(|| it.get("lock_info").and_then(|li| get_non_null(li, "unlock_at")))
+              .or_else(|| cd.and_then(|c| get_non_null(c, "unlock_at")))
               .or_else(|| {
                 cd.and_then(|c| c.get("lock_info"))
-                  .and_then(|li| li.get("unlock_at"))
+                  .and_then(|li| get_non_null(li, "unlock_at"))
               })
               .cloned()
               .unwrap_or_else(|| mod_unlock_at.clone());
-            let lock_at = cd
-              .and_then(|c| c.get("lock_at"))
+            let lock_at = get_non_null(&it, "lock_at")
+              .or_else(|| it.get("lock_info").and_then(|li| get_non_null(li, "lock_at")))
+              .or_else(|| cd.and_then(|c| get_non_null(c, "lock_at")))
               .or_else(|| {
                 cd.and_then(|c| c.get("lock_info"))
-                  .and_then(|li| li.get("lock_at"))
+                  .and_then(|li| get_non_null(li, "lock_at"))
               })
               .cloned()
               .unwrap_or(Value::Null);
 
             let disp_name = cd
-              .and_then(|c| c.get("display_name").or_else(|| c.get("filename")))
-              .or_else(|| it.get("title"))
+              .and_then(|c| get_non_null(c, "display_name").or_else(|| get_non_null(c, "filename")))
+              .or_else(|| get_non_null(&it, "title"))
               .cloned()
               .unwrap_or(Value::Null);
             let fname = cd
-              .and_then(|c| c.get("filename").or_else(|| c.get("display_name")))
-              .or_else(|| it.get("title"))
+              .and_then(|c| get_non_null(c, "filename").or_else(|| get_non_null(c, "display_name")))
+              .or_else(|| get_non_null(&it, "title"))
               .cloned()
               .unwrap_or(Value::Null);
             let ctype = cd
-              .and_then(|c| c.get("content_type").or_else(|| c.get("content-type")))
+              .and_then(|c| get_non_null(c, "content_type").or_else(|| get_non_null(c, "content-type")))
               .cloned()
               .unwrap_or(Value::Null);
             let sz = cd
-              .and_then(|c| c.get("size"))
+              .and_then(|c| get_non_null(c, "size"))
               .cloned()
               .unwrap_or(Value::Null);
 
@@ -971,6 +995,7 @@ impl CanvasService {
           "name": m.get("name").and_then(|v| v.as_str()).unwrap_or("モジュール"),
           "position": m.get("position").and_then(|v| v.as_u64()).unwrap_or(0),
           "state": m.get("state").cloned().unwrap_or(Value::Null),
+          "isLocked": mod_locked,
           "unlockAt": mod_unlock_at,
           "itemsCount": m.get("items_count").and_then(|v| v.as_u64()).unwrap_or(items.len() as u64),
           "items": items,
@@ -1020,14 +1045,12 @@ impl CanvasService {
                         Value::String(s) => s.clone(),
                         _ => id.to_string(),
                     };
-                    let display_name = f
-                        .get("display_name")
-                        .or_else(|| f.get("filename"))
+                    let display_name = get_non_null(&f, "display_name")
+                        .or_else(|| get_non_null(&f, "filename"))
                         .and_then(|v| v.as_str())
                         .unwrap_or("file");
-                    let content_type = f
-                        .get("content-type")
-                        .or_else(|| f.get("content_type"))
+                    let content_type = get_non_null(&f, "content-type")
+                        .or_else(|| get_non_null(&f, "content_type"))
                         .and_then(|v| v.as_str())
                         .unwrap_or("application/octet-stream");
                     let locked = f
@@ -1036,14 +1059,17 @@ impl CanvasService {
                         .unwrap_or(false)
                         || f.get("hidden_for_user")
                             .and_then(|v| v.as_bool())
-                            .unwrap_or(false);
+                            .unwrap_or(false)
+                        || f.get("locked").and_then(|v| v.as_bool()).unwrap_or(false)
+                        || f.get("hidden").and_then(|v| v.as_bool()).unwrap_or(false)
+                        || get_non_null(&f, "lock_info").is_some();
 
                     file_map.insert(
             id_str,
             json!({
               "id": id,
               "displayName": display_name,
-              "filename": f.get("filename").and_then(|v| v.as_str()).unwrap_or(display_name),
+              "filename": get_non_null(&f, "filename").and_then(|v| v.as_str()).unwrap_or(display_name),
               "size": f.get("size").and_then(|v| v.as_u64()).unwrap_or(0),
               "contentType": content_type,
               "url": f.get("url").cloned().unwrap_or(Value::Null),
@@ -1051,9 +1077,9 @@ impl CanvasService {
               "updatedAt": f.get("updated_at").cloned().unwrap_or(Value::Null),
               "isLocked": locked,
               "lockedForUser": locked,
-              "unlockAt": f.get("unlock_at").cloned().unwrap_or(Value::Null),
-              "lockAt": f.get("lock_at").or_else(|| f.get("lock_info").and_then(|li| li.get("lock_at"))).cloned().unwrap_or(Value::Null),
-              "lockExplanation": f.get("lock_explanation").cloned().unwrap_or(Value::Null),
+              "unlockAt": get_non_null(&f, "unlock_at").or_else(|| f.get("lock_info").and_then(|li| get_non_null(li, "unlock_at"))).cloned().unwrap_or(Value::Null),
+              "lockAt": get_non_null(&f, "lock_at").or_else(|| f.get("lock_info").and_then(|li| get_non_null(li, "lock_at"))).cloned().unwrap_or(Value::Null),
+              "lockExplanation": get_non_null(&f, "lock_explanation").or_else(|| f.get("lock_info").and_then(|li| get_non_null(li, "lock_explanation"))).cloned().unwrap_or(Value::Null),
               "source": "files_tab",
             }),
           );
@@ -1106,8 +1132,9 @@ impl CanvasService {
                                             "updatedAt": Value::Null,
                                             "isLocked": item_locked,
                                             "lockedForUser": item_locked,
-                                            "unlockAt": it.get("unlockAt").cloned().unwrap_or(Value::Null),
-                                            "lockExplanation": it.get("lockExplanation").cloned().unwrap_or(Value::Null),
+                                            "unlockAt": get_non_null(it, "unlockAt").cloned().unwrap_or(Value::Null),
+                                            "lockAt": get_non_null(it, "lockAt").cloned().unwrap_or(Value::Null),
+                                            "lockExplanation": get_non_null(it, "lockExplanation").cloned().unwrap_or(Value::Null),
                                             "moduleName": m_name.clone(),
                                             "source": "module",
                                         }),
@@ -1223,13 +1250,37 @@ impl CanvasService {
                                         it.get("indent").cloned().unwrap_or(json!(0)),
                                     );
                                     obj.insert("type".to_string(), json!("File"));
+                                    if let Some(html_url) = get_non_null(&it, "htmlUrl") {
+                                        obj.insert("htmlUrl".to_string(), html_url.clone());
+                                    }
+                                    let m_locked = m.get("isLocked").and_then(|v| v.as_bool()).unwrap_or(false);
+                                    let it_locked = it.get("isLocked").and_then(|v| v.as_bool()).unwrap_or(false);
+                                    let f_locked = obj.get("isLocked").and_then(|v| v.as_bool()).unwrap_or(false);
+                                    let combined_locked = f_locked || it_locked || m_locked;
+                                    obj.insert("isLocked".to_string(), json!(combined_locked));
+                                    obj.insert("lockedForUser".to_string(), json!(combined_locked));
+                                    if obj.get("unlockAt").map_or(true, |v| v.is_null()) {
+                                        if let Some(u) = get_non_null(&it, "unlockAt") {
+                                            obj.insert("unlockAt".to_string(), u.clone());
+                                        }
+                                    }
+                                    if obj.get("lockAt").map_or(true, |v| v.is_null()) {
+                                        if let Some(l) = get_non_null(&it, "lockAt") {
+                                            obj.insert("lockAt".to_string(), l.clone());
+                                        }
+                                    }
+                                    if obj.get("lockExplanation").map_or(true, |v| v.is_null()) {
+                                        if let Some(exp) = get_non_null(&it, "lockExplanation") {
+                                            obj.insert("lockExplanation".to_string(), exp.clone());
+                                        }
+                                    }
                                     if !obj.contains_key("contentType") || obj.get("contentType").map_or(true, |v| v.is_null()) {
-                                        if let Some(ct) = it.get("contentType").filter(|v| !v.is_null()) {
+                                        if let Some(ct) = get_non_null(&it, "contentType") {
                                             obj.insert("contentType".to_string(), ct.clone());
                                         }
                                     }
                                     if obj.get("size").and_then(|v| v.as_u64()).unwrap_or(0) == 0 {
-                                        if let Some(sz) = it.get("size").filter(|v| !v.is_null()) {
+                                        if let Some(sz) = get_non_null(&it, "size") {
                                             obj.insert("size".to_string(), sz.clone());
                                         }
                                     }
@@ -1249,8 +1300,9 @@ impl CanvasService {
               "htmlUrl": it.get("htmlUrl").cloned().unwrap_or(Value::Null),
               "isLocked": it.get("isLocked").and_then(|v| v.as_bool()).unwrap_or(false),
               "lockedForUser": it.get("lockedForUser").and_then(|v| v.as_bool()).unwrap_or(false),
-              "unlockAt": it.get("unlockAt").cloned().unwrap_or(Value::Null),
-              "lockExplanation": it.get("lockExplanation").cloned().unwrap_or(Value::Null),
+              "unlockAt": get_non_null(&it, "unlockAt").cloned().unwrap_or(Value::Null),
+              "lockAt": get_non_null(&it, "lockAt").cloned().unwrap_or(Value::Null),
+              "lockExplanation": get_non_null(&it, "lockExplanation").cloned().unwrap_or(Value::Null),
               "indent": it.get("indent").cloned().unwrap_or(json!(0)),
             }));
                     } else if item_type == "Assignment" {
@@ -1264,9 +1316,9 @@ impl CanvasService {
                             .and_then(|k| assign_map_by_id.get(k))
                             .or_else(|| assign_map_by_name.get(title_str));
                         let resolved_aid = assign_info
-                            .and_then(|a| a.get("id"))
-                            .or_else(|| it.get("contentId"))
-                            .or_else(|| it.get("id"))
+                            .and_then(|a| get_non_null(a, "id"))
+                            .or_else(|| get_non_null(&it, "contentId"))
+                            .or_else(|| get_non_null(&it, "id"))
                             .cloned()
                             .unwrap_or(Value::Null);
                         let is_locked = assign_info
@@ -1286,25 +1338,24 @@ impl CanvasService {
               "courseId": course_id,
               "title": it.get("title").cloned().unwrap_or(Value::Null),
               "type": "Assignment",
-              "htmlUrl": assign_info.and_then(|a| a.get("htmlUrl")).or_else(|| it.get("htmlUrl")).cloned().unwrap_or(Value::Null),
-              "dueAt": assign_info.and_then(|a| a.get("dueAt")).or_else(|| it.get("dueAt")).cloned().unwrap_or(Value::Null),
-              "pointsPossible": assign_info.and_then(|a| a.get("pointsPossible")).or_else(|| it.get("pointsPossible")).cloned().unwrap_or(Value::Null),
-              "submissionTypes": assign_info.and_then(|a| a.get("submissionTypes")).cloned().unwrap_or_else(|| json!(["online_upload"])),
+              "htmlUrl": assign_info.and_then(|a| get_non_null(a, "htmlUrl")).or_else(|| get_non_null(&it, "htmlUrl")).cloned().unwrap_or(Value::Null),
+              "dueAt": assign_info.and_then(|a| get_non_null(a, "dueAt")).or_else(|| get_non_null(&it, "dueAt")).cloned().unwrap_or(Value::Null),
+              "pointsPossible": assign_info.and_then(|a| get_non_null(a, "pointsPossible")).or_else(|| get_non_null(&it, "pointsPossible")).cloned().unwrap_or(Value::Null),
+              "submissionTypes": assign_info.and_then(|a| get_non_null(a, "submissionTypes")).cloned().unwrap_or_else(|| json!(["online_upload"])),
               "isSubmitted": assign_info.and_then(|a| a.get("isSubmitted")).and_then(|v| v.as_bool()).unwrap_or(false),
               "isGraded": assign_info.and_then(|a| a.get("isGraded")).and_then(|v| v.as_bool()).unwrap_or(false),
               "isLocked": is_locked,
               "lockedForUser": is_locked,
-              "unlockAt": assign_info.and_then(|a| a.get("unlockAt")).or_else(|| it.get("unlockAt")).cloned().unwrap_or(Value::Null),
-              "lockAt": assign_info.and_then(|a| a.get("lockAt")).or_else(|| it.get("lockAt")).cloned().unwrap_or(Value::Null),
-              "lockExplanation": assign_info.and_then(|a| a.get("lockExplanation")).or_else(|| it.get("lockExplanation")).cloned().unwrap_or(Value::Null),
+              "unlockAt": assign_info.and_then(|a| get_non_null(a, "unlockAt")).or_else(|| get_non_null(&it, "unlockAt")).cloned().unwrap_or(Value::Null),
+              "lockAt": assign_info.and_then(|a| get_non_null(a, "lockAt")).or_else(|| get_non_null(&it, "lockAt")).cloned().unwrap_or(Value::Null),
+              "lockExplanation": assign_info.and_then(|a| get_non_null(a, "lockExplanation")).or_else(|| get_non_null(&it, "lockExplanation")).cloned().unwrap_or(Value::Null),
               "description": assign_info.and_then(|a| a.get("description")).and_then(|v| v.as_str()).unwrap_or(""),
-              "submission": assign_info.and_then(|a| a.get("submission")).cloned().unwrap_or(Value::Null),
+              "submission": assign_info.and_then(|a| get_non_null(a, "submission")).cloned().unwrap_or(Value::Null),
               "indent": it.get("indent").cloned().unwrap_or(json!(0)),
             }));
                     } else if item_type == "Discussion" {
-                        let tid = it
-                            .get("contentId")
-                            .or_else(|| it.get("id"))
+                        let tid = get_non_null(&it, "contentId")
+                            .or_else(|| get_non_null(&it, "id"))
                             .cloned()
                             .unwrap_or(Value::Null);
                         module_items.push(json!({
@@ -1317,8 +1368,9 @@ impl CanvasService {
               "htmlUrl": it.get("htmlUrl").cloned().unwrap_or(Value::Null),
               "isLocked": it.get("isLocked").and_then(|v| v.as_bool()).unwrap_or(false),
               "lockedForUser": it.get("lockedForUser").and_then(|v| v.as_bool()).unwrap_or(false),
-              "unlockAt": it.get("unlockAt").cloned().unwrap_or(Value::Null),
-              "lockExplanation": it.get("lockExplanation").cloned().unwrap_or(Value::Null),
+              "unlockAt": get_non_null(&it, "unlockAt").cloned().unwrap_or(Value::Null),
+              "lockAt": get_non_null(&it, "lockAt").cloned().unwrap_or(Value::Null),
+              "lockExplanation": get_non_null(&it, "lockExplanation").cloned().unwrap_or(Value::Null),
               "indent": it.get("indent").cloned().unwrap_or(json!(0)),
             }));
                     } else if item_type == "ExternalUrl"
@@ -1332,13 +1384,14 @@ impl CanvasService {
               "courseId": course_id,
               "title": it.get("title").cloned().unwrap_or(Value::Null),
               "type": item_type,
-              "url": it.get("externalUrl").or_else(|| it.get("htmlUrl")).or_else(|| it.get("url")).cloned().unwrap_or(Value::Null),
-              "externalUrl": it.get("externalUrl").cloned().unwrap_or(Value::Null),
-              "htmlUrl": it.get("htmlUrl").cloned().unwrap_or(Value::Null),
+              "url": get_non_null(&it, "externalUrl").or_else(|| get_non_null(&it, "htmlUrl")).or_else(|| get_non_null(&it, "url")).cloned().unwrap_or(Value::Null),
+              "externalUrl": get_non_null(&it, "externalUrl").cloned().unwrap_or(Value::Null),
+              "htmlUrl": get_non_null(&it, "htmlUrl").cloned().unwrap_or(Value::Null),
               "isLocked": it.get("isLocked").and_then(|v| v.as_bool()).unwrap_or(false),
               "lockedForUser": it.get("lockedForUser").and_then(|v| v.as_bool()).unwrap_or(false),
-              "unlockAt": it.get("unlockAt").cloned().unwrap_or(Value::Null),
-              "lockExplanation": it.get("lockExplanation").cloned().unwrap_or(Value::Null),
+              "unlockAt": get_non_null(&it, "unlockAt").cloned().unwrap_or(Value::Null),
+              "lockAt": get_non_null(&it, "lockAt").cloned().unwrap_or(Value::Null),
+              "lockExplanation": get_non_null(&it, "lockExplanation").cloned().unwrap_or(Value::Null),
               "indent": it.get("indent").cloned().unwrap_or(json!(0)),
             }));
                     }
@@ -1350,6 +1403,8 @@ impl CanvasService {
                   "id": m.get("id").cloned().unwrap_or(Value::Null),
                   "name": m.get("name").cloned().unwrap_or_else(|| json!("モジュール")),
                   "position": m.get("position").cloned().unwrap_or(json!(0)),
+                  "isLocked": m.get("isLocked").and_then(|v| v.as_bool()).unwrap_or(false),
+                  "unlockAt": get_non_null(&m, "unlockAt").cloned().unwrap_or(Value::Null),
                   "items": module_items,
                 }));
             }
@@ -1431,10 +1486,12 @@ impl CanvasService {
           "body": data.get("body").and_then(|v| v.as_str()).unwrap_or(""),
           "createdAt": data.get("created_at").cloned().unwrap_or(Value::Null),
           "updatedAt": data.get("updated_at").cloned().unwrap_or(Value::Null),
+          "url": data.get("html_url").cloned().unwrap_or(Value::Null),
           "htmlUrl": data.get("html_url").cloned().unwrap_or(Value::Null),
           "lockedForUser": data.get("locked_for_user").and_then(|v| v.as_bool()).unwrap_or(false),
-          "lockExplanation": data.get("lock_explanation").or_else(|| data.get("lock_info").and_then(|li| li.get("lock_explanation"))).cloned().unwrap_or(Value::Null),
-          "unlockAt": data.get("unlock_at").or_else(|| data.get("lock_info").and_then(|li| li.get("unlock_at"))).cloned().unwrap_or(Value::Null),
+          "lockExplanation": get_non_null(&data, "lock_explanation").or_else(|| data.get("lock_info").and_then(|li| get_non_null(li, "lock_explanation"))).cloned().unwrap_or(Value::Null),
+          "unlockAt": get_non_null(&data, "unlock_at").or_else(|| data.get("lock_info").and_then(|li| get_non_null(li, "unlock_at"))).cloned().unwrap_or(Value::Null),
+          "lockAt": get_non_null(&data, "lock_at").or_else(|| data.get("lock_info").and_then(|li| get_non_null(li, "lock_at"))).cloned().unwrap_or(Value::Null),
         }))
     }
 
@@ -1454,12 +1511,14 @@ impl CanvasService {
           "id": d.get("id").cloned().unwrap_or(Value::Null),
           "title": d.get("title").and_then(|v| v.as_str()).unwrap_or("無題のトピック"),
           "message": d.get("message").and_then(|v| v.as_str()).unwrap_or(""),
-          "postedAt": d.get("posted_at").or_else(|| d.get("created_at")).cloned().unwrap_or(Value::Null),
+          "postedAt": get_non_null(&d, "posted_at").or_else(|| get_non_null(&d, "created_at")).cloned().unwrap_or(Value::Null),
           "author": d.get("author").and_then(|a| a.get("display_name")).and_then(|v| v.as_str()).unwrap_or(""),
           "discussionSubentryCount": d.get("discussion_subentry_count").and_then(|v| v.as_u64()).unwrap_or(0),
           "htmlUrl": d.get("html_url").cloned().unwrap_or(Value::Null),
           "lockedForUser": d.get("locked_for_user").and_then(|v| v.as_bool()).unwrap_or(false),
-          "lockExplanation": d.get("lock_explanation").cloned().unwrap_or(Value::Null),
+          "lockExplanation": get_non_null(&d, "lock_explanation").or_else(|| d.get("lock_info").and_then(|li| get_non_null(li, "lock_explanation"))).cloned().unwrap_or(Value::Null),
+          "unlockAt": get_non_null(&d, "unlock_at").or_else(|| d.get("lock_info").and_then(|li| get_non_null(li, "unlock_at"))).cloned().unwrap_or(Value::Null),
+          "lockAt": get_non_null(&d, "lock_at").or_else(|| d.get("lock_info").and_then(|li| get_non_null(li, "lock_at"))).cloned().unwrap_or(Value::Null),
         })
       })
       .collect();
@@ -1480,11 +1539,14 @@ impl CanvasService {
           "id": data.get("id").cloned().unwrap_or(Value::Null),
           "title": data.get("title").and_then(|v| v.as_str()).unwrap_or("ディスカッション"),
           "body": data.get("message").and_then(|v| v.as_str()).unwrap_or(""),
-          "postedAt": data.get("posted_at").or_else(|| data.get("created_at")).cloned().unwrap_or(Value::Null),
+          "postedAt": get_non_null(&data, "posted_at").or_else(|| get_non_null(&data, "created_at")).cloned().unwrap_or(Value::Null),
           "author": data.get("author").and_then(|a| a.get("display_name")).and_then(|v| v.as_str()).unwrap_or(""),
+          "url": data.get("html_url").cloned().unwrap_or(Value::Null),
           "htmlUrl": data.get("html_url").cloned().unwrap_or(Value::Null),
           "lockedForUser": data.get("locked_for_user").and_then(|v| v.as_bool()).unwrap_or(false),
-          "lockExplanation": data.get("lock_explanation").cloned().unwrap_or(Value::Null),
+          "lockExplanation": get_non_null(&data, "lock_explanation").or_else(|| data.get("lock_info").and_then(|li| get_non_null(li, "lock_explanation"))).cloned().unwrap_or(Value::Null),
+          "unlockAt": get_non_null(&data, "unlock_at").or_else(|| data.get("lock_info").and_then(|li| get_non_null(li, "unlock_at"))).cloned().unwrap_or(Value::Null),
+          "lockAt": get_non_null(&data, "lock_at").or_else(|| data.get("lock_info").and_then(|li| get_non_null(li, "lock_at"))).cloned().unwrap_or(Value::Null),
         }))
     }
 
@@ -1703,9 +1765,9 @@ impl CanvasService {
           "assignmentHtmlUrl": assign_obj.and_then(|a| a.get("html_url")).cloned().unwrap_or(Value::Null),
           "assignmentIsLocked": is_locked,
           "assignmentLockedForUser": is_locked,
-          "assignmentLockExplanation": assign_obj.and_then(|a| a.get("lock_explanation").or_else(|| a.get("lock_info").and_then(|li| li.get("lock_explanation")))).cloned().unwrap_or(Value::Null),
-          "assignmentUnlockAt": assign_obj.and_then(|a| a.get("unlock_at").or_else(|| a.get("lock_info").and_then(|li| li.get("unlock_at")))).cloned().unwrap_or(Value::Null),
-          "assignmentLockAt": assign_obj.and_then(|a| a.get("lock_at").or_else(|| a.get("lock_info").and_then(|li| li.get("lock_at")))).cloned().unwrap_or(Value::Null),
+          "assignmentLockExplanation": assign_obj.and_then(|a| get_non_null(a, "lock_explanation").or_else(|| a.get("lock_info").and_then(|li| get_non_null(li, "lock_explanation")))).cloned().unwrap_or(Value::Null),
+          "assignmentUnlockAt": assign_obj.and_then(|a| get_non_null(a, "unlock_at").or_else(|| a.get("lock_info").and_then(|li| get_non_null(li, "unlock_at")))).cloned().unwrap_or(Value::Null),
+          "assignmentLockAt": assign_obj.and_then(|a| get_non_null(a, "lock_at").or_else(|| a.get("lock_info").and_then(|li| get_non_null(li, "lock_at")))).cloned().unwrap_or(Value::Null),
           "attachments": mapped_atts,
         }))
     }

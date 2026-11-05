@@ -1,6 +1,6 @@
 {
   "name": "horizon",
-  "version": "1.4.14",
+  "version": "1.4.15",
   "description": "Horizon - Personal LMS Desktop Client",
   "main": "src/main.js",
   "repository": {

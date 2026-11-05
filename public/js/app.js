@@ -853,8 +853,8 @@ const downloadManager = {
         const progress = Math.min(100, Math.max(0, job.progress || 0));
 
         const iconHtml = isYt 
-          ? `<div class="download-item-icon youtube" title="YouTube動画"><svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></div>`
-          : `<div class="download-item-icon" title="講義資料・ファイル"><svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg></div>`;
+          ? `<div class="download-item-icon youtube"><svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24"><path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/></svg></div>`
+          : `<div class="download-item-icon"><svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/></svg></div>`;
 
         const statusText = getStatusText(job);
         const safeTitle = utils.escapeHtml(job.title || 'ダウンロード');
@@ -865,9 +865,9 @@ const downloadManager = {
             <div class="download-item-top">
               ${iconHtml}
               <div class="download-item-info">
-                <div class="download-item-title" title="${safeTitle}">${safeTitle}</div>
+                <div class="download-item-title">${safeTitle}</div>
                 <div class="download-item-status">${utils.escapeHtml(statusText)}</div>
-                ${safeDir ? `<div style="font-size: 10px; color: var(--text-muted); opacity: 0.8; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="保存先: ${safeDir}">保存先: ${safeDir}</div>` : ''}
+                ${safeDir ? `<div style="font-size: 10px; color: var(--text-muted); opacity: 0.8; margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">保存先: ${safeDir}</div>` : ''}
               </div>
             </div>
             <div class="download-progress">
@@ -2053,7 +2053,6 @@ function renderSidebarCourses(courses) {
     const isActive = (state.activeView === 'materials') && (String(state.materialsCourseId) === String(c.id));
     item.className = `sidebar-course-item${isActive ? ' active' : ''}`;
     item.dataset.courseId = c.id;
-    item.setAttribute('title', c.name);
 
     const color = utils.getCourseColor(c.name || c.id);
     const pendingCount = pendingCountMap.get(String(c.id)) || 0;
@@ -2063,7 +2062,7 @@ function renderSidebarCourses(courses) {
         <span class="course-color-dot ${color.dotClass}"></span>
         <span class="sidebar-course-name">${c.cleanName || c.name}</span>
       </div>
-      ${pendingCount > 0 ? `<span class="course-task-badge" title="未提出課題: ${pendingCount}件">${pendingCount}</span>` : ''}
+      ${pendingCount > 0 ? `<span class="course-task-badge">${pendingCount}</span>` : ''}
     `;
 
     let hoverPrefetchTimer = null;
@@ -2113,7 +2112,6 @@ function updateMaterialsCourseHeader(courseId = state.materialsCourseId) {
   const course = (state.courses || []).find(c => String(c.id) === String(courseId));
   const name = course ? (course.cleanName || course.name) : '講義資料';
   titleEl.textContent = name;
-  titleEl.title = name;
 }
 
 function getSelectedCourseName(courseId = state.materialsCourseId) {
@@ -2499,11 +2497,11 @@ function createAssignmentCardElement(a) {
 
   // 手動完了マーク切替ボタン
   const completeToggleBtnHtml = isDone
-    ? `<button type="button" class="btn-manual-complete-toggle action-chip-btn action-completed" title="${isManualDone ? '未完了に戻す' : '提出完了済み'}">
+    ? `<button type="button" class="btn-manual-complete-toggle action-chip-btn action-completed">
         <svg class="btn-icon" width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
         <span>${isManualDone ? '手動完了' : '完了'}</span>
        </button>`
-    : `<button type="button" class="btn-manual-complete-toggle action-chip-btn action-check" title="完了マークをつける (手動完了)">
+    : `<button type="button" class="btn-manual-complete-toggle action-chip-btn action-check">
         <svg class="btn-icon" width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
         <span>完了</span>
        </button>`;
@@ -2511,7 +2509,7 @@ function createAssignmentCardElement(a) {
   // アクションボタン (保存ボタン action-chip-btn と統一規格のピルデザイン・適正サイズ)
   let actionBtnHtml = '';
   if (a.isSubmitted) {
-    actionBtnHtml = `<button class="btn-view-submission action-chip-btn action-submitted" title="提出内容を確認">
+    actionBtnHtml = `<button class="btn-view-submission action-chip-btn action-submitted">
         <svg class="btn-icon" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
         <span>提出済</span>
        </button>`;
@@ -2521,7 +2519,7 @@ function createAssignmentCardElement(a) {
         <span>ロック</span>
        </button>`;
   } else {
-    actionBtnHtml = `<button class="btn-submit-action action-chip-btn action-submit" title="課題の提出画面を開く">
+    actionBtnHtml = `<button class="btn-submit-action action-chip-btn action-submit">
         <svg class="btn-icon" width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
         <span>提出</span>
        </button>`;
@@ -2536,7 +2534,7 @@ function createAssignmentCardElement(a) {
         ${badgeHtml}
       </div>
       <div class="assignment-meta-row">
-        <span class="assignment-course ${color.tagClass}" title="${a.courseName || ''}">
+        <span class="assignment-course ${color.tagClass}">
           ${cleanCourse}
         </span>
         <span class="assignment-due-time">
@@ -2830,30 +2828,30 @@ function renderAssignmentSubmissionHistory(submission, assignment) {
     row.className = 'explorer-file-row is-selected';
     row.dataset.fileName = fileName.toLowerCase();
     row.innerHTML = `
-      <div class="explorer-col-select" title="チェックしたファイルは再提出時も保持されます">
+      <div class="explorer-col-select">
         <input type="checkbox" class="retain-file-checkbox" data-file-id="${att.id}" checked>
       </div>
       <div class="explorer-col-icon ${extClass}">
         ${iconSvg}
       </div>
-      <div class="explorer-file-name" title="${utils.escapeHtml(fileName)}">
+      <div class="explorer-file-name">
         ${utils.escapeHtml(fileName)}
       </div>
-      <div class="explorer-col-ext" title="形式: ${extDisplay}">
+      <div class="explorer-col-ext">
         <span class="explorer-ext-badge ${extClass}">${extDisplay || '-'}</span>
       </div>
       <div class="explorer-col-meta">
         ${sizeText ? `<span class="explorer-meta-size">${sizeText}</span>` : ''}
         ${(sizeText && dateText) ? `<span class="explorer-meta-divider">•</span>` : ''}
-        ${dateText ? `<span class="explorer-meta-date" title="提出日時">${dateText}</span>` : ''}
+        ${dateText ? `<span class="explorer-meta-date">${dateText}</span>` : ''}
       </div>
       <div class="explorer-col-actions">
         ${(isPdf || isImage) ? `
-          <button type="button" class="explorer-mini-btn preview-file-btn" title="ファイル内容をプレビュー">
+          <button type="button" class="explorer-mini-btn preview-file-btn">
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
           </button>
         ` : ''}
-        <button type="button" class="explorer-mini-btn action-save btn-explorer-save" title="ファイルを個別保存">
+        <button type="button" class="explorer-mini-btn action-save btn-explorer-save">
           <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
         </button>
       </div>
@@ -3778,10 +3776,10 @@ function renderFileQueue() {
     item.innerHTML = `
       <div class="file-queue-left">
         <span class="file-icon-badge">${utils.getFileExt(file.name)}</span>
-        <span class="file-queue-name" title="${file.name}">${file.name}</span>
+        <span class="file-queue-name">${file.name}</span>
         <span class="file-queue-size">(${utils.formatBytes(file.size)})</span>
       </div>
-      <button class="remove-file-btn" title="削除">
+      <button class="remove-file-btn">
         <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
       </button>
     `;
@@ -4480,7 +4478,7 @@ function renderGroupedMaterials(modules) {
           <span class="module-items-badge">${m.items.length}件</span>
         </div>
         ${totalSavable > 0 ? `
-          <button class="action-chip-btn action-download btn-zip-module" title="この回のファイル・動画をすべて保存します">
+          <button class="action-chip-btn action-download btn-zip-module">
             <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
             この回の資料を保存 (${totalSavable}件)
           </button>
@@ -4689,7 +4687,7 @@ function renderGroupedMaterials(modules) {
           `;
         } else {
           actionHtml = `
-            <button type="button" class="action-chip-btn action-download btn-file-direct-save" title="ダウンロードフォルダに保存">
+            <button type="button" class="action-chip-btn action-download btn-file-direct-save">
               <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
               <span>保存</span>
             </button>
@@ -4705,7 +4703,7 @@ function renderGroupedMaterials(modules) {
           `;
         } else {
           actionHtml = `
-            <span class="action-chip-btn action-quiz btn-open-quiz-direct" title="小テスト・アンケートを受験">
+            <span class="action-chip-btn action-quiz btn-open-quiz-direct">
               <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
               <span>回答</span>
             </span>
@@ -4721,7 +4719,7 @@ function renderGroupedMaterials(modules) {
           `;
         } else {
           actionHtml = `
-            <span class="action-chip-btn action-view" title="講義ノート・指示事項を表示">
+            <span class="action-chip-btn action-view">
               <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
               <span>閲覧</span>
             </span>
@@ -4730,7 +4728,7 @@ function renderGroupedMaterials(modules) {
       } else if (isAssignment) {
         if (isAssignmentSubmitted) {
           actionHtml = `
-            <span class="action-chip-btn action-submitted" title="提出状況の確認・再提出">
+            <span class="action-chip-btn action-submitted">
               <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M5 13l4 4L19 7"/></svg>
               <span>提出済</span>
             </span>
@@ -4744,7 +4742,7 @@ function renderGroupedMaterials(modules) {
           `;
         } else {
           actionHtml = `
-            <span class="action-chip-btn action-submit" title="課題の確認と提出">
+            <span class="action-chip-btn action-submit">
               <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
               <span>提出</span>
             </span>
@@ -4752,14 +4750,14 @@ function renderGroupedMaterials(modules) {
         }
       } else if (ytId) {
         actionHtml = `
-          <button type="button" class="action-chip-btn action-download btn-yt-dl-trigger" title="動画をダウンロードフォルダに保存">
+          <button type="button" class="action-chip-btn action-download btn-yt-dl-trigger">
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
             <span>保存</span>
           </button>
         `;
       } else if (isExternal) {
         actionHtml = `
-          <span class="action-chip-btn action-external" title="外部ページを開く">
+          <span class="action-chip-btn action-external">
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
             <span>開く</span>
           </span>
@@ -5804,12 +5802,12 @@ function setupContentLinks(container, defaultCourseId = null) {
       videoCard.className = 'embedded-video-card';
       videoCard.innerHTML = `
         <div class="embedded-video-header">
-          <div class="embedded-video-title" title="${utils.escapeHtml(cleanTitle)}">
+          <div class="embedded-video-title">
             <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <span>${utils.escapeHtml(cleanTitle)}</span>
           </div>
           <div class="embedded-video-actions">
-            <button type="button" class="action-chip-btn action-download btn-save-embedded-video" title="ダウンロードフォルダに保存">
+            <button type="button" class="action-chip-btn action-download btn-save-embedded-video">
               <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
               <span>保存</span>
             </button>
@@ -5851,7 +5849,7 @@ function setupContentLinks(container, defaultCourseId = null) {
       videoCard.className = 'embedded-video-card';
       videoCard.innerHTML = `
         <div class="embedded-video-header">
-          <div class="embedded-video-title" title="${utils.escapeHtml(cleanTitle)}">
+          <div class="embedded-video-title">
             <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <span>${utils.escapeHtml(cleanTitle)}</span>
           </div>
@@ -5944,7 +5942,6 @@ function setupContentLinks(container, defaultCourseId = null) {
     if (pageMatch && !endpointOrHref.includes('/files/')) {
       const slug = pageMatch[1];
       link.style.cursor = 'pointer';
-      link.title = `講義ノート「${text || title || slug}」を開く`;
       link.addEventListener('click', (e) => {
         e.preventDefault();
         openPageModal(resolvedCourseId, slug, text || title || '講義ノート');
@@ -5956,7 +5953,6 @@ function setupContentLinks(container, defaultCourseId = null) {
     if (assignMatch && !endpointOrHref.includes('/files/') && !endpointOrHref.includes('/submissions/')) {
       const assignId = assignMatch[1];
       link.style.cursor = 'pointer';
-      link.title = `課題「${text || title || assignId}」を開く`;
       link.addEventListener('click', (e) => {
         e.preventDefault();
         const existing = (state.allAssignments || []).find(a => String(a.id) === String(assignId));
@@ -5980,7 +5976,6 @@ function setupContentLinks(container, defaultCourseId = null) {
     if (discMatch) {
       const topicId = discMatch[1];
       link.style.cursor = 'pointer';
-      link.title = `ディスカッション「${text || title || topicId}」を開く`;
       link.addEventListener('click', (e) => {
         e.preventDefault();
         openDiscussionModal(resolvedCourseId, topicId, text || title || 'ディスカッション');
@@ -6015,9 +6010,6 @@ function setupContentLinks(container, defaultCourseId = null) {
     if (isPreviewable || isCanvasFile || fileCategory === 'download') {
       link.classList.add(isPdf ? 'inline-pdf-link' : 'inline-file-link');
       link.style.cursor = 'pointer';
-      link.title = isPdf
-        ? '内蔵PDFビューアでプレビュー'
-        : (isPreviewable ? '内蔵ビューアでプレビュー' : `ファイルをダウンロード${detectedExt ? ` (${detectedExt})` : ''}`);
 
       link.addEventListener('click', async (e) => {
         e.preventDefault();
@@ -6117,7 +6109,7 @@ function renderAnnouncements(announcements) {
     const courseColor = utils.getCourseColor(courseName || courseId);
 
     const courseTagHtml = courseName
-      ? `<span class="assignment-course ${courseColor.tagClass}" title="${courseName}">${courseName}</span>`
+      ? `<span class="assignment-course ${courseColor.tagClass}">${courseName}</span>`
       : '';
 
     card.innerHTML = `
@@ -6164,7 +6156,6 @@ function renderAnnouncements(announcements) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.className = `action-chip-btn ${isPreviewable ? 'action-submit' : 'action-download'}`;
-        btn.title = isPreviewable ? '内蔵ビューアでプレビュー' : 'ファイルをダウンロード';
         btn.innerHTML = `
           <svg width="13" height="13" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="${isPreviewable ? 'M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z' : 'M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12'}"/></svg>
           <span>${utils.escapeHtml(attName)}</span>

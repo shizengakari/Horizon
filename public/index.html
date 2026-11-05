@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&family=Plus+Jakarta+Sans:wght@500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=1.4.14">
+  <link rel="stylesheet" href="css/style.css?v=1.4.15">
 </head>
 <body>
   <canvas id="confetti-canvas"></canvas>
@@ -141,7 +141,7 @@
           
           <!-- ステータスKPIカード -->
           <div class="stats-overview-grid">
-            <div class="kpi-card urgent" id="kpi-card-urgent" title="クリックで24時間以内の課題を表示">
+            <div class="kpi-card urgent" id="kpi-card-urgent">
               <div class="kpi-icon-wrap">
                 <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               </div>
@@ -151,7 +151,7 @@
               </div>
             </div>
 
-            <div class="kpi-card pending" id="kpi-card-pending" title="クリックで未提出課題を表示">
+            <div class="kpi-card pending" id="kpi-card-pending">
               <div class="kpi-icon-wrap">
                 <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
               </div>
@@ -161,7 +161,7 @@
               </div>
             </div>
 
-            <div class="kpi-card completed" id="kpi-card-completed" title="クリックで提出済み課題を表示">
+            <div class="kpi-card completed" id="kpi-card-completed">
               <div class="kpi-icon-wrap">
                 <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
               </div>
@@ -171,7 +171,7 @@
               </div>
             </div>
 
-            <div class="kpi-card courses" id="kpi-card-courses" title="クリックで講義資料へジャンプ">
+            <div class="kpi-card courses" id="kpi-card-courses">
               <div class="kpi-icon-wrap">
                 <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
               </div>
@@ -240,11 +240,11 @@
               </div>
             </div>
             <div class="materials-action-group">
-              <button class="btn-secondary" id="btn-toggle-all-modules" title="すべての授業回の開閉を切り替えます">
+              <button class="btn-secondary" id="btn-toggle-all-modules">
                 <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l4-4 4 4m0 6l-4 4-4-4"/></svg>
                 <span id="btn-toggle-all-label">すべて折りたたむ</span>
               </button>
-              <button class="btn-primary" id="btn-download-all-zip" title="選択したフォルダに講義資料をまとめて直接保存します">
+              <button class="btn-primary" id="btn-download-all-zip">
                 <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
                 全資料を保存
               </button>
@@ -826,14 +826,14 @@
   <div class="toast-container" id="toast-container"></div>
 
   <!-- アプリケーションロジック -->
-  <script src="js/app.js?v=1.4.14"></script>
+  <script src="js/app.js?v=1.4.15"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         if ('caches' in window && (location.hostname === '127.0.0.1' || location.hostname === 'localhost')) {
           caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => {});
         }
-        navigator.serviceWorker.register('/sw.js?v=1.4.14').then((reg) => {
+        navigator.serviceWorker.register('/sw.js?v=1.4.15').then((reg) => {
           reg.update().catch(() => {});
         }).catch((err) => {
           console.debug('ServiceWorker registration skipped/failed:', err);

@@ -249,51 +249,7 @@ const utils = {
   },
 
   formatLockTooltip(item) {
-    if (!item) return 'ロック中';
-    const nowMs = Date.now();
-    const unlockMs = item.unlockAt ? new Date(item.unlockAt).getTime() : null;
-    const lockMs = item.lockAt ? new Date(item.lockAt).getTime() : null;
-    const hasUnlock = Boolean(unlockMs && !isNaN(unlockMs));
-    const hasLock = Boolean(lockMs && !isNaN(lockMs));
-    const isFutureUnlock = hasUnlock && unlockMs > nowMs;
-    const isPastLock = hasLock && lockMs <= nowMs;
-
-    const lines = [];
-
-    if (isFutureUnlock) {
-      lines.push(`🔒 【ロック中】${utils.formatDate(item.unlockAt)} に公開・ロック解除予定です`);
-    } else if (isPastLock) {
-      lines.push(`🔒 【ロック中】${utils.formatDate(item.lockAt)} にロックされ、提出・閲覧期間が終了しました`);
-    } else {
-      lines.push('🔒 【ロック中】現在この項目はアクセス制限されています');
-    }
-
-    const schedules = [];
-    if (hasUnlock) {
-      schedules.push(`・公開開始 (いつまでロックか): ${utils.formatDate(item.unlockAt)}`);
-    }
-    if (item.dueAt) {
-      schedules.push(`・提出期限: ${utils.formatDate(item.dueAt)}`);
-    }
-    if (hasLock) {
-      schedules.push(`・ロック日時 (いつロックされたか): ${utils.formatDate(item.lockAt)}`);
-    }
-
-    if (schedules.length > 0) {
-      lines.push('');
-      lines.push(schedules.join('\n'));
-    }
-
-    const cleanExpl = utils.stripHtml(item.lockExplanation || '').trim();
-    if (cleanExpl) {
-      lines.push('');
-      lines.push(`案内: ${cleanExpl}`);
-    }
-
-    lines.push('');
-    lines.push('※クリックすると詳細案内を確認できます');
-
-    return lines.join('\n');
+    return utils.getLockSummaryText(item);
   },
 
   getDueUrgency(isoString, isSubmitted, assignmentId = null) {
@@ -2538,9 +2494,6 @@ function createAssignmentCardElement(a) {
   let badgeHtml = '';
   if (a.isGraded && a.submission?.score != null) {
     badgeHtml = `<span class="badge badge-submitted">${a.submission.score}点</span>`;
-  } else if (isLocked) {
-    const lockSummary = utils.getLockSummaryText(a);
-    badgeHtml = `<span class="badge badge-locked" title="${utils.escapeHtml(lockTooltip)}">${utils.escapeHtml(lockSummary)}</span>`;
   } else if (!isDone && !isLocked && urgency.level === 'urgent') {
     badgeHtml = `<span class="badge badge-urgent">${urgency.text}</span>`;
   } else if (!isDone && !isLocked && urgency.level === 'pending') {
@@ -3244,10 +3197,9 @@ function renderLockedContentNotice(lockExplanation, htmlUrl = null, meta = {}) {
 
   const scheduleItems = [];
   if (meta.unlockAt) {
-    const unlockLabel = isFutureUnlock ? '公開開始 (いつまでロックか):' : '公開開始:';
     scheduleItems.push(`
       <div class="locked-schedule-item">
-        <span class="locked-schedule-label">${unlockLabel}</span>
+        <span class="locked-schedule-label">公開開始:</span>
         <span class="locked-schedule-value">${utils.escapeHtml(utils.formatDate(meta.unlockAt))}</span>
       </div>
     `);
@@ -3261,10 +3213,9 @@ function renderLockedContentNotice(lockExplanation, htmlUrl = null, meta = {}) {
     `);
   }
   if (meta.lockAt) {
-    const lockLabel = isPastLock ? 'ロック日時 (いつロックされたか):' : 'ロック予定日時:';
     scheduleItems.push(`
       <div class="locked-schedule-item">
-        <span class="locked-schedule-label">${lockLabel}</span>
+        <span class="locked-schedule-label">ロック日時:</span>
         <span class="locked-schedule-value">${utils.escapeHtml(utils.formatDate(meta.lockAt))}</span>
       </div>
     `);
@@ -3335,18 +3286,14 @@ function renderAssignmentSubmissionPanel(assignment) {
       const explanation = utils.stripHtml(assignment.lockExplanation || '') || defaultDesc;
 
       const scheduleRows = [];
-      const isFutureUnlock = assignment.unlockAt && new Date(assignment.unlockAt).getTime() > nowMs;
-      const isPastLock = assignment.lockAt && new Date(assignment.lockAt).getTime() <= nowMs;
       if (assignment.unlockAt) {
-        const unlockLabel = isFutureUnlock ? '公開開始 (いつまでロックか):' : '公開開始:';
-        scheduleRows.push(`<div class="locked-schedule-item"><span class="locked-schedule-label">${unlockLabel}</span><span class="locked-schedule-value">${utils.escapeHtml(utils.formatDate(assignment.unlockAt))}</span></div>`);
+        scheduleRows.push(`<div class="locked-schedule-item"><span class="locked-schedule-label">公開開始:</span><span class="locked-schedule-value">${utils.escapeHtml(utils.formatDate(assignment.unlockAt))}</span></div>`);
       }
       if (assignment.dueAt) {
         scheduleRows.push(`<div class="locked-schedule-item"><span class="locked-schedule-label">提出期限:</span><span class="locked-schedule-value">${utils.escapeHtml(utils.formatDate(assignment.dueAt))}</span></div>`);
       }
       if (assignment.lockAt) {
-        const lockLabel = isPastLock ? 'ロック日時 (いつロックされたか):' : 'ロック予定日時:';
-        scheduleRows.push(`<div class="locked-schedule-item"><span class="locked-schedule-label">${lockLabel}</span><span class="locked-schedule-value">${utils.escapeHtml(utils.formatDate(assignment.lockAt))}</span></div>`);
+        scheduleRows.push(`<div class="locked-schedule-item"><span class="locked-schedule-label">ロック日時:</span><span class="locked-schedule-value">${utils.escapeHtml(utils.formatDate(assignment.lockAt))}</span></div>`);
       }
 
       lockedNotice.innerHTML = `
@@ -4529,22 +4476,13 @@ function renderGroupedMaterials(modules) {
     const totalSavable = fileItems.length + videoItems.length;
 
     const isModLocked = Boolean(m.isLocked || (m.unlockAt && new Date(m.unlockAt).getTime() > Date.now()));
-    let moduleLockBadge = '';
-    if (isModLocked) {
-      const modLockTooltip = utils.formatLockTooltip({
-        unlockAt: m.unlockAt,
-        lockExplanation: `モジュール「${m.name}」全体がロックされています`
-      });
-      const modSummary = utils.getLockSummaryText({ unlockAt: m.unlockAt });
-      moduleLockBadge = `<span class="meta-chip locked-chip" style="margin-left: 8px; font-size: 11px; vertical-align: middle;" title="${utils.escapeHtml(modLockTooltip)}"><svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg> ${utils.escapeHtml(modSummary)}</span>`;
-    }
+    const modLockTooltip = isModLocked ? utils.formatLockTooltip({ unlockAt: m.unlockAt }) : '';
 
     group.innerHTML = `
-      <div class="module-group-header">
+      <div class="module-group-header"${isModLocked && modLockTooltip ? ` title="${utils.escapeHtml(modLockTooltip)}"` : ''}>
         <div class="module-group-title">
           <svg class="module-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
           <span>${m.name}</span>
-          ${moduleLockBadge}
           <span class="module-items-badge">${m.items.length}件</span>
         </div>
         ${totalSavable > 0 ? `
@@ -4709,16 +4647,7 @@ function renderGroupedMaterials(modules) {
         iconHtml = '<svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>';
       }
 
-      // サブテキストの表示（締切・配点・種別・ロック状態）
-      let lockChipHtml = '';
-      if (isLockedItem) {
-        const lockSummary = utils.getLockSummaryText({
-          unlockAt: effectiveUnlockAt,
-          lockAt: effectiveLockAt
-        });
-        lockChipHtml = `<span class="meta-chip locked-chip" title="${utils.escapeHtml(lockTooltip)}"><svg width="11" height="11" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg> ${utils.escapeHtml(lockSummary)}</span>`;
-      }
-
+      // サブテキストの表示（締切・配点・種別）
       let metaHtml = '';
       if (isAssignment) {
         const assignData = matchingAssign || it;
@@ -4728,16 +4657,11 @@ function renderGroupedMaterials(modules) {
         const dueText = dueAt ? utils.formatDate(dueAt) : null;
         const isLockedAssign = Boolean(isLockedItem || matchingAssign?.isLocked);
 
-        if (isAssignmentSubmitted) {
+        if (isAssignmentSubmitted || isLockedAssign) {
           const parts = [];
           if (dueText) parts.push(`締切: ${dueText}`);
           if (pointsText) parts.push(pointsText);
           metaHtml = parts.length > 0 ? `<span>${parts.join(' ・ ')}</span>` : `<span>課題</span>`;
-        } else if (isLockedAssign) {
-          const parts = [];
-          if (dueText) parts.push(`締切: ${dueText}`);
-          if (pointsText) parts.push(pointsText);
-          metaHtml = `${lockChipHtml}${parts.length > 0 ? `<span>${parts.join(' ・ ')}</span>` : '<span>課題</span>'}`;
         } else if (dueText) {
           const urgency = utils.getDueUrgency(dueAt, false);
           const chipClass = urgency.level === 'urgent' ? 'due-urgent' : 'due-normal';
@@ -4748,18 +4672,18 @@ function renderGroupedMaterials(modules) {
           metaHtml = `<span>課題</span>`;
         }
       } else if (isQuiz) {
-        metaHtml = `${lockChipHtml}<span>小テスト</span>`;
+        metaHtml = `<span>小テスト</span>`;
       } else if (isDiscussion) {
-        metaHtml = `${lockChipHtml}<span>ディスカッション</span>`;
+        metaHtml = `<span>ディスカッション</span>`;
       } else if (isPage) {
-        metaHtml = `${lockChipHtml}<span>ノート</span>`;
+        metaHtml = `<span>ノート</span>`;
       } else if (ytId) {
-        metaHtml = `${lockChipHtml}<span>動画</span>`;
+        metaHtml = `<span>動画</span>`;
       } else if (isFile) {
         const ext = isPdf ? 'PDF' : utils.getFileExt(it.filename || it.displayName || title, it.contentType, isPdf);
-        metaHtml = `${lockChipHtml}<span>${ext}${it.size ? ` ・ ${utils.formatBytes(it.size)}` : ''}</span>`;
+        metaHtml = `<span>${ext}${it.size ? ` ・ ${utils.formatBytes(it.size)}` : ''}</span>`;
       } else {
-        metaHtml = `${lockChipHtml}<span>リンク</span>`;
+        metaHtml = `<span>リンク</span>`;
       }
 
       // アクションボタンの生成（シンプル＆クリーン）
@@ -5096,15 +5020,7 @@ function openLockedItemDetailModal(item, context = {}) {
   const lockExplanation = item.lockExplanation || (context.moduleName ? `所属モジュール「${context.moduleName}」が現在ロックされています。` : null);
 
   if (bodyEl) {
-    bodyEl.innerHTML = `
-      ${renderLockedContentNotice(lockExplanation, htmlUrl, { unlockAt, lockAt, dueAt })}
-      <div style="margin-top: 16px; padding: 14px 16px; border-radius: var(--radius-md); background: var(--bg-hover); border: 1px solid var(--border-subtle); font-size: 12.5px; line-height: 1.6; color: var(--text-secondary);">
-        <div style="font-weight: 700; color: var(--text-main); margin-bottom: 6px;">💡 ロック情報</div>
-        <div>・<strong>公開開始日時（いつまでロックか）</strong>: 設定された日時を迎えると自動的に閲覧・保存が可能になります。</div>
-        <div>・<strong>ロック日時（いつロックされたか）</strong>: 期限経過により受付・閲覧が終了した日時です。</div>
-        ${lockExplanation ? `<div style="margin-top: 4px;">・Canvas案内: ${utils.escapeHtml(utils.stripHtml(lockExplanation))}</div>` : ''}
-      </div>
-    `;
+    bodyEl.innerHTML = renderLockedContentNotice(lockExplanation, htmlUrl, { unlockAt, lockAt, dueAt });
     setupContentLinks(bodyEl, item.courseId || state.materialsCourseId);
   }
 

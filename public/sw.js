@@ -2,7 +2,7 @@
  * Horizon - Service Worker (PWA)
  */
 
-const CACHE_NAME = 'horizon-v1.4.12';
+const CACHE_NAME = 'horizon-v1.4.13';
 const STATIC_ASSETS = [
   '/',
   '/index.html',

@@ -5261,23 +5261,6 @@ input:checked + .slider:before {
 /* ロック中モジュールカードスタイル */
 .module-file-card.is-locked-item {
   cursor: pointer;
-  border-color: rgba(245, 158, 11, 0.22);
-  background: rgba(245, 158, 11, 0.03);
-}
-
-.module-file-card.is-locked-item:hover {
-  border-color: rgba(245, 158, 11, 0.45);
-  background: rgba(245, 158, 11, 0.06);
-}
-
-[data-theme="light"] .module-file-card.is-locked-item {
-  border-color: #fde68a;
-  background: #fffdf5;
-}
-
-[data-theme="light"] .module-file-card.is-locked-item:hover {
-  border-color: #fcd34d;
-  background: #fffbeb;
 }
 
 /* ロックバッジ・アクションボタン (イエロー系) */

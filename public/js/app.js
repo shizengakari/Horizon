@@ -2483,9 +2483,6 @@ function createAssignmentCardElement(a) {
 
   card.className = `assignment-card ${statusCls}`;
   const lockTooltip = isLocked ? utils.formatLockTooltip(a) : '';
-  if (isLocked) {
-    card.title = lockTooltip;
-  }
   
   const dueFormatted = utils.formatDate(a.dueAt);
   const pointsBadge = a.pointsPossible ? `<span class="assignment-points">${a.pointsPossible} 点</span>` : '';
@@ -4475,11 +4472,8 @@ function renderGroupedMaterials(modules) {
 
     const totalSavable = fileItems.length + videoItems.length;
 
-    const isModLocked = Boolean(m.isLocked || (m.unlockAt && new Date(m.unlockAt).getTime() > Date.now()));
-    const modLockTooltip = isModLocked ? utils.formatLockTooltip({ unlockAt: m.unlockAt }) : '';
-
     group.innerHTML = `
-      <div class="module-group-header"${isModLocked && modLockTooltip ? ` title="${utils.escapeHtml(modLockTooltip)}"` : ''}>
+      <div class="module-group-header">
         <div class="module-group-title">
           <svg class="module-chevron" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 9l-7 7-7-7"/></svg>
           <span>${m.name}</span>
@@ -4613,9 +4607,6 @@ function renderGroupedMaterials(modules) {
 
       const card = document.createElement('div');
       card.className = `module-file-card${isLockedItem ? ' is-locked-item' : ''}`;
-      if (isLockedItem) {
-        card.title = lockTooltip;
-      }
 
       const extUrl = it.externalUrl || it.url || it.htmlUrl;
       const ytId = utils.extractYouTubeVideoId(extUrl);
@@ -4786,7 +4777,7 @@ function renderGroupedMaterials(modules) {
           </div>
           <div class="module-file-info">
             <div class="module-file-title-wrap">
-              <span class="module-file-title" title="${title}">${title}</span>
+              <span class="module-file-title">${title}</span>
             </div>
             <div class="module-file-meta">
               ${metaHtml}

@@ -1365,9 +1365,6 @@ function setupTheme() {
       moonIcon.style.display = isDark ? 'block' : 'none';
       sunIcon.style.display = isDark ? 'none' : 'block';
     }
-    if (headerToggleBtn) {
-      headerToggleBtn.setAttribute('title', isDark ? 'ライトモードに切り替え' : 'ダークモードに切り替え');
-    }
 
     // サイドバーUI
     if (sidebarMoonIcon && sidebarSunIcon) {
@@ -1436,12 +1433,7 @@ async function setupBatteryManager() {
 
     // ヘッダーの丸型電源アイコンボタン: 省電力モードの場合のみ表示
     if (powerBtn) {
-      if (isSaving) {
-        powerBtn.style.display = 'inline-flex';
-        powerBtn.setAttribute('title', '省電力モード動作中 (クリックで設定を開く)');
-      } else {
-        powerBtn.style.display = 'none';
-      }
+      powerBtn.style.display = isSaving ? 'inline-flex' : 'none';
     }
 
     // 設定画面の電源状態インジケーター (シンプルなアイコン判定)
@@ -3135,7 +3127,6 @@ const modalNav = {
         if (labelEl) {
           labelEl.textContent = prev.title ? `${prev.title}` : '戻る';
         }
-        btn.title = `前の画面「${prev.title || ''}」に戻る (Esc / Alt+←)`;
       } else {
         btn.style.display = 'none';
       }
@@ -5454,7 +5445,7 @@ async function openPdfPreviewModal(fileUrl, fileName, fileId = null, courseId = 
             const tableWrap = document.createElement('div');
             tableWrap.className = 'csv-preview-wrapper';
             const headerCells = rows[0].map(c => `<th>${utils.escapeHtml(c)}</th>`).join('');
-            const bodyRows = rows.slice(1).map(r => `<tr>${r.map(c => `<td title="${utils.escapeHtml(c)}">${utils.escapeHtml(c)}</td>`).join('')}</tr>`).join('');
+            const bodyRows = rows.slice(1).map(r => `<tr>${r.map(c => `<td>${utils.escapeHtml(c)}</td>`).join('')}</tr>`).join('');
             tableWrap.innerHTML = `<table class="csv-preview-table"><thead><tr>${headerCells}</tr></thead><tbody>${bodyRows}</tbody></table>`;
             customPreview.appendChild(tableWrap);
           } else {

@@ -21,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&family=Plus+Jakarta+Sans:wght@500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=1.4.15">
+  <link rel="stylesheet" href="css/style.css?v=1.4.16">
 </head>
 <body>
   <canvas id="confetti-canvas"></canvas>
@@ -56,7 +56,7 @@
       <!-- ヘッダー -->
       <header class="top-header">
         <div class="header-left">
-          <div class="search-bar-container" id="global-search-trigger" title="あらゆるものを検索 (Ctrl+K)">
+          <div class="search-bar-container" id="global-search-trigger">
             <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             <input type="text" placeholder="あらゆるものを検索..." readonly>
             <kbd>Ctrl+K</kbd>
@@ -72,7 +72,7 @@
           </div>
 
           <div class="download-menu-wrap">
-            <button class="icon-btn download-manager-btn" id="btn-download-manager" title="ダウンロード管理" aria-expanded="false">
+            <button class="icon-btn download-manager-btn" id="btn-download-manager" aria-expanded="false">
               <svg class="dl-icon" width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v12m0 0l4-4m-4 4l-4-4m-5 6v2a2 2 0 002 2h14a2 2 0 002-2v-2"/></svg>
               <span class="download-count-badge" id="download-count-badge" hidden>0</span>
               <div class="dl-btn-progressbar" id="dl-btn-progressbar"></div>
@@ -84,7 +84,7 @@
                   <strong>ダウンロード管理</strong>
                 </div>
                 <div class="download-panel-actions">
-                  <button type="button" class="btn-panel-action" id="btn-clear-downloads" title="完了履歴を消去">消去</button>
+                  <button type="button" class="btn-panel-action" id="btn-clear-downloads">消去</button>
                   <button type="button" class="download-panel-close" id="btn-close-download-panel" aria-label="閉じる">×</button>
                 </div>
               </div>
@@ -104,13 +104,13 @@
           </div>
 
           <!-- テーマ切り替えボタン -->
-          <button class="icon-btn theme-toggle-btn" id="btn-theme-toggle" title="外観テーマ切り替え (ダーク / ライト)">
+          <button class="icon-btn theme-toggle-btn" id="btn-theme-toggle">
             <svg id="theme-moon-icon" width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"/></svg>
             <svg id="theme-sun-icon" style="display: none;" width="17" height="17" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
           </button>
 
           <!-- 電源・省電力モード切替ボタン (省電力モード時のみ表示されるシンプルなエコアイコン) -->
-          <button class="icon-btn power-mode-btn" id="btn-power-mode" title="省電力モード動作中 (設定を開く)" style="display: none;">
+          <button class="icon-btn power-mode-btn" id="btn-power-mode" style="display: none;">
             <svg id="power-saving-icon" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/>
               <path stroke-linecap="round" stroke-linejoin="round" d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/>
@@ -118,13 +118,13 @@
           </button>
 
           <!-- 同期ボタン -->
-          <button class="icon-btn refresh-btn" id="btn-refresh" title="Canvasから最新データを同期">
+          <button class="icon-btn refresh-btn" id="btn-refresh">
             <svg class="refresh-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
             <svg class="refresh-check-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
           </button>
 
           <!-- 設定ボタン -->
-          <button class="icon-btn header-settings-btn" id="btn-header-settings" title="設定 (Canvas接続・テーマ・同期間隔)">
+          <button class="icon-btn header-settings-btn" id="btn-header-settings">
             <svg width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
               <circle cx="12" cy="12" r="3"></circle>
               <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
@@ -191,7 +191,7 @@
                 <button class="pill-btn" data-filter="submitted">提出済み</button>
                 <button class="pill-btn" data-filter="graded">採点済み</button>
               </div>
-              <button class="pill-btn quarter-filter-btn" id="btn-toggle-current-q" title="今学期の科目のみに絞り込み">
+              <button class="pill-btn quarter-filter-btn" id="btn-toggle-current-q">
                 <span class="q-filter-dot"></span>
                 <span id="q-filter-label">今期のみ</span>
               </button>
@@ -202,11 +202,11 @@
               <div class="inline-search-box">
                 <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 <input type="text" id="dashboard-search-input" placeholder="課題を検索...">
-                <button class="clear-search-btn" id="btn-clear-dashboard-search" style="display: none;" title="クリア">×</button>
+                <button class="clear-search-btn" id="btn-clear-dashboard-search" style="display: none;">×</button>
               </div>
 
               <div class="sort-select-wrapper">
-                <select class="select-filter select-sort" id="dashboard-sort-select" title="並び替え">
+                <select class="select-filter select-sort" id="dashboard-sort-select">
                   <option value="due-asc">締切が近い順</option>
                   <option value="due-desc">締切が遠い順</option>
                   <option value="course">科目名順</option>
@@ -236,7 +236,7 @@
               <div class="inline-search-box">
                 <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                 <input type="text" id="materials-search-input" placeholder="資料を検索...">
-                <button class="clear-search-btn" id="btn-clear-materials-search" style="display: none;" title="クリア">×</button>
+                <button class="clear-search-btn" id="btn-clear-materials-search" style="display: none;">×</button>
               </div>
             </div>
             <div class="materials-action-group">
@@ -271,7 +271,7 @@
         <div class="view-page" id="view-settings">
           <div class="section-header" style="display: flex; align-items: center; justify-content: space-between;">
             <div style="display: flex; align-items: center; gap: 14px;">
-              <button type="button" class="btn-secondary btn-sm" id="btn-settings-back" title="元の画面に戻る" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: var(--radius-full); cursor: pointer;">
+              <button type="button" class="btn-secondary btn-sm" id="btn-settings-back" style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: var(--radius-full); cursor: pointer;">
                 <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
                 <span>戻る</span>
               </button>
@@ -346,15 +346,15 @@
                 </span>
               </div>
               <div class="battery-segmented-control" id="battery-segmented-control">
-                <button type="button" class="battery-segment-btn active" data-battery-mode="auto" id="battery-btn-auto" title="バッテリー駆動時に自動で省電力モードに移行">
+                <button type="button" class="battery-segment-btn active" data-battery-mode="auto" id="battery-btn-auto">
                   <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10Z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2 21c0-3 1.85-5.36 5.08-6C9.5 14.52 12 13 13 12"/></svg>
                   <span>自動 (推奨)</span>
                 </button>
-                <button type="button" class="battery-segment-btn" data-battery-mode="on" id="battery-btn-on" title="常に省電力モードで動作（バッテリー最大化）">
+                <button type="button" class="battery-segment-btn" data-battery-mode="on" id="battery-btn-on">
                   <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
                   <span>常に省電力</span>
                 </button>
-                <button type="button" class="battery-segment-btn" data-battery-mode="off" id="battery-btn-off" title="省電力を無効化（フルパフォーマンス）">
+                <button type="button" class="battery-segment-btn" data-battery-mode="off" id="battery-btn-off">
                   <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"/></svg>
                   <span>オフ</span>
                 </button>
@@ -394,7 +394,7 @@
     <div class="modal-container assignment-modal-container" id="assignment-modal-container">
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 10px; overflow: hidden; flex: 1;">
-          <button type="button" class="modal-back-btn" style="display: none;" title="前の画面に戻る (Esc / Alt+←)">
+          <button type="button" class="modal-back-btn" style="display: none;">
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
             <span class="modal-back-label">戻る</span>
           </button>
@@ -404,15 +404,15 @@
           </div>
         </div>
         <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-          <button class="icon-btn" id="btn-toggle-editor-wide" title="執筆ワイドモード切替 (左の説明を見ながらエディタを広大化) [Alt+W]">
+          <button class="icon-btn" id="btn-toggle-editor-wide">
             <svg id="editor-wide-icon-expand" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
             <svg id="editor-wide-icon-collapse" style="display: none;" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
           </button>
-          <button class="icon-btn" id="assignment-modal-fullscreen-btn" title="全画面表示切替 (Escで閉じる)">
+          <button class="icon-btn" id="assignment-modal-fullscreen-btn">
             <svg id="assignment-expand-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
             <svg id="assignment-compress-icon" style="display: none;" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 14h6m0 0v6m0-6L3 21m17-7h-6m0 0v6m0-6l7 7M10 4v6m0 0H4m6 0L3 3m10 7h6m-6 0V4m0 6l7-7"/></svg>
           </button>
-          <button class="icon-btn" id="modal-close-btn" title="閉じる (Esc)">
+          <button class="icon-btn" id="modal-close-btn">
             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -512,13 +512,13 @@
                     </span>
                     <input type="text" class="explorer-search-input" id="history-files-search-input" placeholder="ファイル名で検索...">
                   </div>
-                  <button class="btn-secondary btn-sm" id="btn-download-submission-zip" title="すべての提出ファイルをまとめて保存">全件保存</button>
+                  <button class="btn-secondary btn-sm" id="btn-download-submission-zip">全件保存</button>
                 </div>
               </div>
 
               <!-- エクスプローラー詳細表示テーブルヘッダー -->
               <div class="explorer-table-header" id="modal-history-table-header">
-                <label class="explorer-header-col-select" title="すべて選択 / 解除">
+                <label class="explorer-header-col-select">
                   <input type="checkbox" id="select-all-retain-checkbox" checked>
                   <span class="header-select-label">全選択</span>
                 </label>
@@ -595,7 +595,7 @@
                   <span class="char-count-badge" id="modal-text-char-count">0 文字</span>
                 </div>
                 <div style="display: flex; align-items: center; gap: 8px;">
-                  <button type="button" class="action-chip-btn" id="btn-quick-wide-toggle" title="左の要件を見ながらエディタを広く使う">
+                  <button type="button" class="action-chip-btn" id="btn-quick-wide-toggle">
                     <span id="btn-quick-wide-text">執筆ワイド表示</span>
                   </button>
                 </div>
@@ -648,7 +648,7 @@
     <div class="modal-container" id="pdf-modal-container">
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 8px; overflow: hidden; flex: 1;">
-          <button type="button" class="modal-back-btn" style="display: none;" title="前の画面に戻る (Esc / Alt+←)">
+          <button type="button" class="modal-back-btn" style="display: none;">
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
             <span class="modal-back-label">戻る</span>
           </button>
@@ -656,15 +656,15 @@
           <span style="font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" id="pdf-modal-title">PDFプレビュー</span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-          <button type="button" class="action-chip-btn action-download" id="pdf-modal-download-btn" title="ダウンロードフォルダに保存">
+          <button type="button" class="action-chip-btn action-download" id="pdf-modal-download-btn">
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
             <span>保存</span>
           </button>
-          <button class="icon-btn" id="pdf-modal-fullscreen-btn" title="全画面表示切替 (Escで戻る)">
+          <button class="icon-btn" id="pdf-modal-fullscreen-btn">
             <svg id="pdf-expand-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
             <svg id="pdf-compress-icon" style="display: none;" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 14h6m0 0v6m0-6L3 21m17-7h-6m0 0v6m0-6l7 7M10 4v6m0 0H4m6 0L3 3m10 7h6m-6 0V4m0 6l7-7"/></svg>
           </button>
-          <button class="icon-btn" id="pdf-modal-close-btn" title="閉じる (Esc)">
+          <button class="icon-btn" id="pdf-modal-close-btn">
             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -685,7 +685,7 @@
     <div class="modal-container" id="page-modal-container">
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 10px; overflow: hidden; flex: 1;">
-          <button type="button" class="modal-back-btn" style="display: none;" title="前の画面に戻る (Esc / Alt+←)">
+          <button type="button" class="modal-back-btn" style="display: none;">
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
             <span class="modal-back-label">戻る</span>
           </button>
@@ -695,15 +695,15 @@
           </div>
         </div>
         <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-          <a class="action-chip-btn" id="page-modal-external-btn" href="#" target="_blank" rel="noopener noreferrer" style="display: none;" title="ブラウザでCanvasページを開く">
+          <a class="action-chip-btn" id="page-modal-external-btn" href="#" target="_blank" rel="noopener noreferrer" style="display: none;">
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
             <span>Canvasで開く</span>
           </a>
-          <button class="icon-btn" id="page-modal-fullscreen-btn" title="全画面表示切替 (Escで戻る)">
+          <button class="icon-btn" id="page-modal-fullscreen-btn">
             <svg id="page-expand-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
             <svg id="page-compress-icon" style="display: none;" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 14h6m0 0v6m0-6L3 21m17-7h-6m0 0v6m0-6l7 7M10 4v6m0 0H4m6 0L3 3m10 7h6m-6 0V4m0 6l7-7"/></svg>
           </button>
-          <button class="icon-btn" id="page-modal-close-btn" title="閉じる (Esc)">
+          <button class="icon-btn" id="page-modal-close-btn">
             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -721,7 +721,7 @@
     <div class="modal-container" id="youtube-modal-container">
       <div class="modal-header">
         <div style="display: flex; align-items: center; gap: 10px; overflow: hidden; flex: 1;">
-          <button type="button" class="modal-back-btn" style="display: none;" title="前の画面に戻る (Esc / Alt+←)">
+          <button type="button" class="modal-back-btn" style="display: none;">
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>
             <span class="modal-back-label">戻る</span>
           </button>
@@ -729,19 +729,19 @@
           <span style="font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--text-main);" id="youtube-modal-title">動画再生</span>
         </div>
         <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-          <button class="action-chip-btn action-download" id="youtube-modal-dl-btn" title="動画をダウンロードフォルダに保存">
+          <button class="action-chip-btn action-download" id="youtube-modal-dl-btn">
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
             <span>保存</span>
           </button>
-          <a class="action-chip-btn" id="youtube-modal-external-btn" href="#" target="_blank" rel="noopener noreferrer" title="ブラウザでYouTubeを開く">
+          <a class="action-chip-btn" id="youtube-modal-external-btn" href="#" target="_blank" rel="noopener noreferrer">
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
             <span>YouTubeで開く</span>
           </a>
-          <button class="icon-btn" id="youtube-modal-fullscreen-btn" title="全画面表示切替 (Escで戻る)">
+          <button class="icon-btn" id="youtube-modal-fullscreen-btn">
             <svg id="youtube-expand-icon" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"/></svg>
             <svg id="youtube-compress-icon" style="display: none;" width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 14h6m0 0v6m0-6L3 21m17-7h-6m0 0v6m0-6l7 7M10 4v6m0 0H4m6 0L3 3m10 7h6m-6 0V4m0 6l7-7"/></svg>
           </button>
-          <button class="icon-btn" id="youtube-modal-close-btn" title="閉じる (Esc)">
+          <button class="icon-btn" id="youtube-modal-close-btn">
             <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
           </button>
         </div>
@@ -784,7 +784,7 @@
             </div>
           </div>
         </div>
-        <button class="icon-btn" id="update-modal-close-btn" title="閉じる (Esc)">
+        <button class="icon-btn" id="update-modal-close-btn">
           <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
         </button>
       </div>
@@ -826,14 +826,14 @@
   <div class="toast-container" id="toast-container"></div>
 
   <!-- アプリケーションロジック -->
-  <script src="js/app.js?v=1.4.15"></script>
+  <script src="js/app.js?v=1.4.16"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         if ('caches' in window && (location.hostname === '127.0.0.1' || location.hostname === 'localhost')) {
           caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => {});
         }
-        navigator.serviceWorker.register('/sw.js?v=1.4.15').then((reg) => {
+        navigator.serviceWorker.register('/sw.js?v=1.4.16').then((reg) => {
           reg.update().catch(() => {});
         }).catch((err) => {
           console.debug('ServiceWorker registration skipped/failed:', err);

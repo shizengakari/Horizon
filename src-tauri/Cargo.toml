@@ -1,6 +1,6 @@
 [package]
 name = "horizon"
-version = "1.4.15"
+version = "1.4.16"
 description = "Horizon - Rust Native Desktop Client"
 authors = ["shizengakari"]
 license = "MIT"

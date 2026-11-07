@@ -5114,13 +5114,25 @@ input:checked + .slider:before {
   cursor: pointer;
   flex-shrink: 0;
   max-width: 220px;
-  transition: background var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
 .modal-back-btn:hover {
   background: rgba(138, 180, 248, 0.22);
   border-color: var(--accent-primary);
-  transform: translateX(-1px);
+}
+
+.modal-back-btn:active {
+  transform: scale(0.97);
+}
+
+.modal-back-btn svg {
+  flex-shrink: 0;
+  transition: transform var(--transition-fast);
+}
+
+.modal-back-btn:hover svg {
+  transform: translateX(-2px);
 }
 
 .modal-back-label {

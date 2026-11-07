@@ -249,7 +249,49 @@ const utils = {
   },
 
   formatLockTooltip(item) {
-    return utils.getLockSummaryText(item);
+    if (!item) return 'ロック中';
+    const nowMs = Date.now();
+    const unlockMs = item.unlockAt ? new Date(item.unlockAt).getTime() : null;
+    const lockMs = item.lockAt ? new Date(item.lockAt).getTime() : null;
+    const hasUnlock = Boolean(unlockMs && !isNaN(unlockMs));
+    const hasLock = Boolean(lockMs && !isNaN(lockMs));
+    const isFutureUnlock = hasUnlock && unlockMs > nowMs;
+    const isPastLock = hasLock && lockMs <= nowMs;
+
+    const lines = [];
+    if (isFutureUnlock) {
+      lines.push(`🔒 【ロック中】${utils.formatDate(item.unlockAt)} に公開・ロック解除予定です`);
+    } else if (isPastLock) {
+      lines.push(`🔒 【ロック中】${utils.formatDate(item.lockAt)} にロックされ、提出・閲覧期間が終了しました`);
+    } else {
+      lines.push('🔒 【ロック中】現在この項目はアクセス制限されています');
+    }
+
+    const schedules = [];
+    if (hasUnlock) {
+      schedules.push(`・公開開始 (いつまでロックか): ${utils.formatDate(item.unlockAt)}`);
+    }
+    if (item.dueAt) {
+      schedules.push(`・提出期限: ${utils.formatDate(item.dueAt)}`);
+    }
+    if (hasLock) {
+      schedules.push(`・ロック日時 (いつロックされたか): ${utils.formatDate(item.lockAt)}`);
+    }
+
+    if (schedules.length > 0) {
+      lines.push('');
+      lines.push(schedules.join('\n'));
+    }
+
+    const cleanExpl = utils.stripHtml(item.lockExplanation || '').trim();
+    if (cleanExpl) {
+      lines.push('');
+      lines.push(`案内: ${cleanExpl}`);
+    }
+
+    lines.push('');
+    lines.push('※クリックすると詳細案内を確認できます');
+    return lines.join('\n');
   },
 
   getDueUrgency(isoString, isSubmitted, assignmentId = null) {
@@ -1024,6 +1066,10 @@ async function downloadSingleFile({ id, url, name, courseId }) {
 
 // 課題提出完了時の演出アニメーション (自然で優雅な花びらの舞い上がり＆セレブレーション)
 function triggerConfetti() {
+  if (window._petalAnimId) {
+    cancelAnimationFrame(window._petalAnimId);
+    window._petalAnimId = null;
+  }
   const canvas = document.getElementById('confetti-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
@@ -2930,11 +2976,14 @@ function renderAssignmentSubmissionHistory(submission, assignment) {
 function cleanupMediaAndResources(container, fullPurge = false) {
   if (!container) return;
 
-  // 1. video / audio 要素の再生停止とバッファ解放
+  // 1. video / audio 要素の再生停止とバッファ・イベントリスナー解放
   const mediaElements = container.querySelectorAll('video, audio');
   mediaElements.forEach(media => {
     try {
       media.pause();
+      media.onloadeddata = null;
+      media.onerror = null;
+      media.ontimeupdate = null;
       if (fullPurge) {
         media.removeAttribute('src');
         const sources = media.querySelectorAll('source');
@@ -2944,10 +2993,12 @@ function cleanupMediaAndResources(container, fullPurge = false) {
     } catch (_) {}
   });
 
-  // 2. iframe 要素の停止とアンロード
+  // 2. iframe 要素の停止とアンロード・参照破棄
   const iframes = container.querySelectorAll('iframe');
   iframes.forEach(iframe => {
     try {
+      iframe.onload = null;
+      iframe.onerror = null;
       iframe.contentWindow?.stop?.();
     } catch (_) {}
     if (fullPurge) {
@@ -2956,6 +3007,15 @@ function cleanupMediaAndResources(container, fullPurge = false) {
       } catch (_) {}
     }
   });
+
+  // 3. img 要素のイベント解除と未完了リクエスト解放
+  if (fullPurge) {
+    const images = container.querySelectorAll('img');
+    images.forEach(img => {
+      img.onload = null;
+      img.onerror = null;
+    });
+  }
 }
 
 // ==========================================================================
@@ -3017,9 +3077,10 @@ const modalNav = {
       const scrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
       const savedCourseId = currentPageModalCourseId;
       const wasFs = isPageFullscreen;
+      const savedPageKey = bodyEl?.dataset?.pageKey || `page:${savedCourseId}:${title}`;
       return {
         modalId,
-        key: `page:${savedCourseId}:${title}`,
+        key: savedPageKey,
         title,
         restore: () => {
           const modal = document.getElementById('page-modal');
@@ -3035,7 +3096,11 @@ const modalNav = {
             eBtn.style.display = extVisible;
           }
           if (bEl) {
-            bEl.innerHTML = bodyHtml;
+            // 同一ページから別モーダル（PDF等）を開いて戻った場合はDOM再構築をスキップして高速復帰（イベントリスナー・スクロールを維持）
+            if (bEl.dataset.pageKey !== savedPageKey || !bEl.innerHTML.trim()) {
+              bEl.innerHTML = bodyHtml;
+              bEl.dataset.pageKey = savedPageKey;
+            }
             setupContentLinks(bEl, savedCourseId);
           }
           togglePageFullscreen(wasFs);
@@ -4596,6 +4661,9 @@ function renderGroupedMaterials(modules) {
 
       const card = document.createElement('div');
       card.className = `module-file-card${isLockedItem ? ' is-locked-item' : ''}`;
+      if (isLockedItem && lockTooltip) {
+        card.title = lockTooltip;
+      }
 
       const extUrl = it.externalUrl || it.url || it.htmlUrl;
       const ytId = utils.extractYouTubeVideoId(extUrl);
@@ -5000,6 +5068,7 @@ function openLockedItemDetailModal(item, context = {}) {
   const lockExplanation = item.lockExplanation || (context.moduleName ? `所属モジュール「${context.moduleName}」が現在ロックされています。` : null);
 
   if (bodyEl) {
+    bodyEl.dataset.pageKey = targetKey;
     bodyEl.innerHTML = renderLockedContentNotice(lockExplanation, htmlUrl, { unlockAt, lockAt, dueAt });
     setupContentLinks(bodyEl, item.courseId || state.materialsCourseId);
   }
@@ -5035,6 +5104,7 @@ async function openPageModal(courseId, pageUrl, fallbackTitle, itemMeta = null) 
       extBtn.style.display = 'none';
     }
   }
+  if (bodyEl) bodyEl.dataset.pageKey = targetKey;
   bodyEl.innerHTML = '<div style="color: var(--text-muted); padding: 20px;">本文を読み込み中...</div>';
   modal.classList.add('open');
   modalNav.syncBackButtons();
@@ -5100,6 +5170,7 @@ async function openDiscussionModal(courseId, topicId, fallbackTitle, itemMeta = 
   if (catEl) catEl.textContent = 'ディスカッション';
   titleEl.textContent = fallbackTitle || 'ディスカッション';
   if (extBtn) extBtn.style.display = 'none';
+  if (bodyEl) bodyEl.dataset.pageKey = targetKey;
   bodyEl.innerHTML = '<div style="color: var(--text-muted); padding: 20px;">内容を読み込み中...</div>';
   modal.classList.add('open');
   modalNav.syncBackButtons();
@@ -5168,6 +5239,7 @@ function closePageModal(preserveNav = false) {
       // 完全に閉じる場合は動画バッファ・GPUリソース・DOMツリーを完全解放
       cleanupMediaAndResources(bodyEl, true);
       bodyEl.innerHTML = '';
+      delete bodyEl.dataset.pageKey;
       currentPageModalCourseId = null;
     }
   }
@@ -5485,12 +5557,13 @@ async function openPdfPreviewModal(fileUrl, fileName, fileId = null, courseId = 
     iframe.style.display = 'block';
   }
 
-  // タイムアウトによる安全なスピナー解除
-  pdfSpinnerTimer = setTimeout(hideSpinner, 6000);
+  // タイムアウトによる安全なスピナー解除 (PDF表示遅延の防止)
+  pdfSpinnerTimer = setTimeout(hideSpinner, 3500);
 
   // 高速な読み込み完了検知
   if (iframe) {
     iframe.onload = hideSpinner;
+    iframe.onerror = hideSpinner;
     const targetViewerUrl = resolvedUrl.includes('#') ? resolvedUrl : `${resolvedUrl}#view=FitH&toolbar=1`;
     iframe.src = targetViewerUrl;
   }
@@ -5519,9 +5592,10 @@ function closePdfModal(preserveNav = false) {
     customPreview.style.display = 'none';
     customPreview.innerHTML = '';
   }
-  // 完全メモリ解放: iframe の再生・リクエストを停止し、about:blank にリダイレクト後、
-  // DOM から完全除去することで Chromium / WebView2 の PDFium プラグインプロセスおよび GPU テクスチャを即座に破棄
+  // 完全メモリ解放: iframe のイベント解除・停止・about:blank 代入・DOM 除去
   if (iframe) {
+    iframe.onload = null;
+    iframe.onerror = null;
     try {
       iframe.contentWindow?.stop?.();
     } catch (_) {}
@@ -5768,8 +5842,14 @@ async function loadAnnouncements() {
 }
 
 // リッチテキストコンテンツ内の動画埋め込み・画像・ファイルリンク・内部リンクの包括的解決
+const boundContentLinks = new WeakSet();
+const boundContentImages = new WeakSet();
+const boundContentButtons = new WeakSet();
+
 function setupContentLinks(container, defaultCourseId = null) {
   if (!container) return;
+
+  const targetCourseId = defaultCourseId || state.materialsCourseId || '';
 
   // 1. Canvas のメディア埋め込み iframe (media_attachments_iframe, media_objects_iframe) の検出と高機能プレイヤー化
   const iframes = Array.from(container.querySelectorAll('iframe'));
@@ -5787,7 +5867,7 @@ function setupContentLinks(container, defaultCourseId = null) {
       if (!cleanTitle) cleanTitle = `講義動画 (${attachmentId})`;
       if (!/\.(mp4|webm|mov|mkv)$/i.test(cleanTitle)) cleanTitle += '.mp4';
 
-      const streamUrl = `/api/files/download?id=${attachmentId}&verifier=${encodeURIComponent(verifier)}&courseId=${defaultCourseId || ''}&inline=true&name=${encodeURIComponent(cleanTitle)}`;
+      const streamUrl = `/api/files/download?id=${attachmentId}&verifier=${encodeURIComponent(verifier)}&courseId=${targetCourseId}&inline=true&name=${encodeURIComponent(cleanTitle)}`;
 
       const videoCard = document.createElement('div');
       videoCard.className = 'embedded-video-card';
@@ -5810,21 +5890,6 @@ function setupContentLinks(container, defaultCourseId = null) {
           </video>
         </div>
       `;
-
-      const saveBtn = videoCard.querySelector('.btn-save-embedded-video');
-      if (saveBtn) {
-        const fileDownloadUrl = new URL(`/api/files/download?id=${attachmentId}&verifier=${encodeURIComponent(verifier)}&courseId=${defaultCourseId || ''}&name=${encodeURIComponent(cleanTitle)}`, window.location.origin).toString();
-        saveBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          downloadSingleFile({
-            id: attachmentId,
-            url: fileDownloadUrl,
-            name: cleanTitle,
-            courseId: defaultCourseId
-          });
-        });
-      }
 
       iframe.parentNode.replaceChild(videoCard, iframe);
       return;
@@ -5854,7 +5919,7 @@ function setupContentLinks(container, defaultCourseId = null) {
 
       iframe.parentNode.replaceChild(videoCard, iframe);
 
-      api.get(`/api/media/resolve?entryId=${encodeURIComponent(mediaId)}&courseId=${defaultCourseId || ''}`)
+      api.get(`/api/media/resolve?entryId=${encodeURIComponent(mediaId)}&courseId=${targetCourseId}`)
         .then(res => {
           if (res.success && res.streamUrl) {
             const v = videoCard.querySelector('video');
@@ -5865,58 +5930,79 @@ function setupContentLinks(container, defaultCourseId = null) {
     }
   });
 
+  // 埋め込み動画の保存ボタンのバインド（WeakSetで多重防止＆画面復元対応）
+  container.querySelectorAll('.btn-save-embedded-video').forEach(saveBtn => {
+    if (boundContentButtons.has(saveBtn)) return;
+    boundContentButtons.add(saveBtn);
+    const card = saveBtn.closest('.embedded-video-card');
+    const v = card?.querySelector('video');
+    const vSrc = v?.getAttribute('src') || '';
+    const titleText = card?.querySelector('.embedded-video-title span')?.textContent?.trim() || 'video.mp4';
+    const idMatch = vSrc.match(/id=(\d+)/);
+    saveBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      downloadSingleFile({
+        id: idMatch ? idMatch[1] : null,
+        url: vSrc,
+        name: titleText,
+        courseId: targetCourseId
+      });
+    });
+  });
+
   // 2. 既存の <video> / <audio> / <img> タグの Canvas 相対パスおよび認証プロキシ補正
+  const resolveFileProxy = (rawSrc, fallbackName = '') => {
+    if (!rawSrc || (!rawSrc.startsWith('/') && !rawSrc.includes('instructure.com'))) return null;
+    const fMatch = rawSrc.match(/\/files\/(\d+)/);
+    if (!fMatch) return null;
+    const vMatch = rawSrc.match(/[?&]verifier=([a-zA-Z0-9\-_]+)/);
+    const verifier = vMatch ? vMatch[1] : '';
+    const cMatch = rawSrc.match(/\/courses\/(\d+)/);
+    const cid = cMatch ? cMatch[1] : targetCourseId;
+    const nameParam = fallbackName ? `&name=${encodeURIComponent(fallbackName)}` : '';
+    return `/api/files/download?id=${fMatch[1]}&verifier=${encodeURIComponent(verifier)}&courseId=${cid}&inline=true${nameParam}`;
+  };
+
   container.querySelectorAll('video, audio').forEach(mediaEl => {
     mediaEl.classList.add('embedded-video-player');
-    const src = mediaEl.getAttribute('src');
-    if (src && (src.startsWith('/') || src.includes('instructure.com'))) {
-      const fMatch = src.match(/\/files\/(\d+)/);
-      if (fMatch) {
-        const vMatch = src.match(/[?&]verifier=([a-zA-Z0-9\-_]+)/);
-        const verifier = vMatch ? vMatch[1] : '';
-        mediaEl.src = `/api/files/download?id=${fMatch[1]}&verifier=${encodeURIComponent(verifier)}&courseId=${defaultCourseId || ''}&inline=true`;
-      }
-    }
+    const newSrc = resolveFileProxy(mediaEl.getAttribute('src'));
+    if (newSrc) mediaEl.src = newSrc;
     mediaEl.querySelectorAll('source').forEach(s => {
-      const sSrc = s.getAttribute('src');
-      if (sSrc && (sSrc.startsWith('/') || sSrc.includes('instructure.com'))) {
-        const sfMatch = sSrc.match(/\/files\/(\d+)/);
-        if (sfMatch) {
-          const vMatch = sSrc.match(/[?&]verifier=([a-zA-Z0-9\-_]+)/);
-          const verifier = vMatch ? vMatch[1] : '';
-          s.src = `/api/files/download?id=${sfMatch[1]}&verifier=${encodeURIComponent(verifier)}&courseId=${defaultCourseId || ''}&inline=true`;
-        }
-      }
+      const sNew = resolveFileProxy(s.getAttribute('src'));
+      if (sNew) s.src = sNew;
     });
   });
 
   container.querySelectorAll('img').forEach(imgEl => {
     const src = imgEl.getAttribute('src') || '';
-    const endpoint = imgEl.dataset?.apiEndpoint || '';
-    const targetSrc = endpoint || src;
+    const targetSrc = imgEl.dataset?.apiEndpoint || src;
     const fMatch = targetSrc.match(/\/files\/(\d+)/);
     if (fMatch && !src.startsWith('/api/files/download')) {
       const fileId = fMatch[1];
-      const vMatch = src.match(/[?&]verifier=([a-zA-Z0-9\-_]+)/);
-      const verifier = vMatch ? vMatch[1] : '';
-      const cMatch = targetSrc.match(/\/courses\/(\d+)/);
-      const cid = cMatch ? cMatch[1] : (defaultCourseId || state.materialsCourseId || '');
       const altName = utils.normalizeFileName(imgEl.getAttribute('alt') || `image_${fileId}.png`, `image_${fileId}.png`);
-      const proxySrc = `/api/files/download?id=${fileId}&verifier=${encodeURIComponent(verifier)}&courseId=${cid}&inline=true&name=${encodeURIComponent(altName)}`;
-      imgEl.src = proxySrc;
-      imgEl.style.cursor = 'zoom-in';
-      imgEl.addEventListener('click', (e) => {
-        if (imgEl.closest('a')) return;
-        e.preventDefault();
-        openPdfPreviewModal(proxySrc, altName, fileId, cid);
-      });
+      const proxySrc = resolveFileProxy(targetSrc, altName);
+      if (proxySrc) {
+        imgEl.src = proxySrc;
+        imgEl.style.cursor = 'zoom-in';
+        if (!boundContentImages.has(imgEl)) {
+          boundContentImages.add(imgEl);
+          imgEl.addEventListener('click', (e) => {
+            if (imgEl.closest('a')) return;
+            e.preventDefault();
+            openPdfPreviewModal(proxySrc, altName, fileId, targetCourseId);
+          });
+        }
+      }
     }
   });
 
   // 3. リンクのインターセプト（ファイル形式精密判定・内部ページ/課題遷移・外部リンク）
   container.querySelectorAll('a').forEach(link => {
-    if (link.dataset.contentLinkBound === '1') return;
-    link.dataset.contentLinkBound = '1';
+    // 既存属性の残存を除去してDOMシリアライズ汚染を防止
+    link.removeAttribute('data-content-link-bound');
+    if (boundContentLinks.has(link)) return;
+    boundContentLinks.add(link);
 
     const href = link.getAttribute('href') || '';
     const text = link.textContent.trim();
@@ -5925,21 +6011,21 @@ function setupContentLinks(container, defaultCourseId = null) {
     const returnType = link.dataset.apiReturntype || '';
     const endpointOrHref = endpoint || href;
 
-    // 3-1. Canvas 内部ページ・課題・ディスカッションへのリンクをモーダル画面遷移としてインターセプト
     const cMatch = endpointOrHref.match(/\/courses\/(\d+)/);
-    const resolvedCourseId = cMatch ? cMatch[1] : (defaultCourseId || state.materialsCourseId || null);
+    const resolvedCourseId = cMatch ? cMatch[1] : targetCourseId;
 
+    // 3-1. Canvas 内部ページ
     const pageMatch = endpointOrHref.match(/\/courses\/\d+\/pages\/([^?#\/]+)/);
     if (pageMatch && !endpointOrHref.includes('/files/')) {
-      const slug = pageMatch[1];
       link.style.cursor = 'pointer';
       link.addEventListener('click', (e) => {
         e.preventDefault();
-        openPageModal(resolvedCourseId, slug, text || title || '講義ノート');
+        openPageModal(resolvedCourseId, pageMatch[1], text || title || '講義ノート');
       });
       return;
     }
 
+    // 3-2. 課題
     const assignMatch = endpointOrHref.match(/\/courses\/\d+\/assignments\/(\d+)/);
     if (assignMatch && !endpointOrHref.includes('/files/') && !endpointOrHref.includes('/submissions/')) {
       const assignId = assignMatch[1];
@@ -5947,45 +6033,36 @@ function setupContentLinks(container, defaultCourseId = null) {
       link.addEventListener('click', (e) => {
         e.preventDefault();
         const existing = (state.allAssignments || []).find(a => String(a.id) === String(assignId));
-        if (existing) {
-          openAssignmentModal(existing);
-        } else {
-          openAssignmentModal({
-            id: assignId,
-            courseId: resolvedCourseId,
-            name: text || title || '課題',
-            courseName: '',
-            submissionTypes: ['online_upload'],
-            htmlUrl: href
-          });
-        }
+        openAssignmentModal(existing || {
+          id: assignId,
+          courseId: resolvedCourseId,
+          name: text || title || '課題',
+          courseName: '',
+          submissionTypes: ['online_upload'],
+          htmlUrl: href
+        });
       });
       return;
     }
 
+    // 3-3. ディスカッション
     const discMatch = endpointOrHref.match(/\/courses\/\d+\/discussion_topics\/(\d+)/);
     if (discMatch) {
-      const topicId = discMatch[1];
       link.style.cursor = 'pointer';
       link.addEventListener('click', (e) => {
         e.preventDefault();
-        openDiscussionModal(resolvedCourseId, topicId, text || title || 'ディスカッション');
+        openDiscussionModal(resolvedCourseId, discMatch[1], text || title || 'ディスカッション');
       });
       return;
     }
 
-    // 3-2. ファイル名および拡張子の精密抽出（data-api-returntype="File" を無条件にPDF扱いしない！）
+    // 3-4. ファイル判定とプレビュー/保存ハンドリング
     const textExt = utils.extractCleanExtension(text);
     const titleExt = utils.extractCleanExtension(title);
     const hrefExt = utils.extractCleanExtension(href);
 
-    // 拡張子が含まれている方を優先してファイル名を採用（例: text="第9回課題_GIシート-1.docx" または title="...docx"）
-    let candidateName = text || title || '';
-    if (!textExt && titleExt) {
-      candidateName = utils.extractCleanFileNameFromText(title, title);
-    } else if (textExt) {
-      candidateName = utils.extractCleanFileNameFromText(text, text);
-    }
+    let candidateName = textExt ? utils.extractCleanFileNameFromText(text, text)
+      : (titleExt ? utils.extractCleanFileNameFromText(title, title) : (text || title || ''));
     candidateName = utils.normalizeFileName(candidateName, '');
 
     const detectedExt = textExt || titleExt || hrefExt;
@@ -6017,7 +6094,7 @@ function setupContentLinks(container, defaultCourseId = null) {
           safeName += detectedExt;
         }
 
-        // 1. プレビュー可能形式（PDF / 画像 / CSV / テキスト・コード / 動画 / 音声）はプレビューモーダルで開く
+        // プレビュー可能形式（PDF / 画像 / CSV / テキスト・コード / 動画 / 音声）
         if (isPreviewable) {
           const previewUrl = fileId
             ? `/api/files/download?id=${fileId}&verifier=${encodeURIComponent(verifier)}&courseId=${resolvedCourseId || ''}&inline=true&name=${encodeURIComponent(safeName)}`
@@ -6026,7 +6103,7 @@ function setupContentLinks(container, defaultCourseId = null) {
           return;
         }
 
-        // 2. 拡張子が既に判明している非プレビュー形式（.docx, .docs, .pptx, .xlsx, .zip 等）は、PDFビューアを起動せず適切な拡張子で直接保存！
+        // 非プレビュー形式（.docx, .xlsx, .zip など）
         if (fileCategory === 'download') {
           downloadSingleFile({
             id: fileId,
@@ -6037,7 +6114,7 @@ function setupContentLinks(container, defaultCourseId = null) {
           return;
         }
 
-        // 3. 拡張子不明の Canvas ファイルリンク（例: リンク文字列が「配付資料」のみで拡張子がない場合）はメタ情報を照会して最適処理
+        // 拡張子不明の Canvas ファイル
         if (fileId) {
           try {
             const metaRes = await api.get(`/api/files/meta?id=${encodeURIComponent(fileId)}&courseId=${encodeURIComponent(resolvedCourseId || '')}&verifier=${encodeURIComponent(verifier)}`);

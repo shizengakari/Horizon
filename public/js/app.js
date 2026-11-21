@@ -3043,7 +3043,6 @@ const modalNav = {
       const textVal = document.getElementById('modal-text-entry-body')?.value || '';
       const urlVal = document.getElementById('modal-url-entry-url')?.value || '';
       const commentVal = document.getElementById('modal-submission-comment')?.value || '';
-      const wasFs = isAssignmentFullscreen;
       const wasWide = isEditorWide;
       return {
         modalId,
@@ -3059,7 +3058,6 @@ const modalNav = {
           if (urlEl && urlVal) urlEl.value = urlVal;
           const commentEl = document.getElementById('modal-submission-comment');
           if (commentEl && commentVal) commentEl.value = commentVal;
-          toggleAssignmentFullscreen(wasFs);
           toggleEditorWide(wasWide);
         }
       };
@@ -3076,7 +3074,6 @@ const modalNav = {
       const scrollContainer = document.querySelector('#page-modal .modal-body');
       const scrollTop = scrollContainer ? scrollContainer.scrollTop : 0;
       const savedCourseId = currentPageModalCourseId;
-      const wasFs = isPageFullscreen;
       const savedPageKey = bodyEl?.dataset?.pageKey || `page:${savedCourseId}:${title}`;
       return {
         modalId,
@@ -3103,7 +3100,6 @@ const modalNav = {
             }
             setupContentLinks(bEl, savedCourseId);
           }
-          togglePageFullscreen(wasFs);
           if (modal) modal.classList.add('open');
           if (scrollContainer) {
             requestAnimationFrame(() => { scrollContainer.scrollTop = scrollTop; });
@@ -3114,28 +3110,24 @@ const modalNav = {
 
     if (modalId === 'pdf-modal' && currentPdfFile) {
       const savedPdf = { ...currentPdfFile };
-      const wasFs = isPdfFullscreen;
       return {
         modalId,
         key: `pdf:${savedPdf.id || savedPdf.url || savedPdf.name}`,
         title: savedPdf.name || 'ファイルプレビュー',
         restore: () => {
           openPdfPreviewModal(savedPdf.url, savedPdf.name, savedPdf.id, savedPdf.courseId);
-          togglePdfFullscreen(wasFs);
         }
       };
     }
 
     if (modalId === 'youtube-modal' && currentYtVideoInfo) {
       const savedYt = { ...currentYtVideoInfo };
-      const wasFs = isYouTubeFullscreen;
       return {
         modalId,
         key: `yt:${savedYt.videoId}`,
         title: savedYt.title || '動画再生',
         restore: () => {
           openYouTubeModal(savedYt.videoId, savedYt.title, savedYt.url);
-          toggleYouTubeFullscreen(wasFs);
         }
       };
     }
@@ -3149,14 +3141,12 @@ const modalNav = {
       const descBox = document.getElementById('modal-description');
       if (descBox) cleanupMediaAndResources(descBox, false);
       modal?.classList.remove('open');
-      if (isAssignmentFullscreen) toggleAssignmentFullscreen(false);
       if (isEditorWide) toggleEditorWide(false);
     } else if (modalId === 'page-modal') {
       const modal = document.getElementById('page-modal');
       const bodyEl = document.getElementById('page-modal-body');
       if (bodyEl) cleanupMediaAndResources(bodyEl, false);
       modal?.classList.remove('open');
-      if (isPageFullscreen) togglePageFullscreen(false);
     } else if (modalId === 'pdf-modal') {
       closePdfModal(true);
     } else if (modalId === 'youtube-modal') {
@@ -3552,40 +3542,11 @@ function openAssignmentModal(assignment) {
   }
 
   renderFileQueue();
-  // モーダルを全画面表示で展開
-  toggleAssignmentFullscreen(true);
   document.getElementById('assignment-modal').classList.add('open');
   modalNav.syncBackButtons();
 }
 
-let isAssignmentFullscreen = false;
 let isEditorWide = false;
-
-// モーダルの全画面化ヘルパー
-function toggleModalFullscreen(containerId, expandIconId, compressIconId, forceState) {
-  const container = document.getElementById(containerId);
-  const expandIcon = document.getElementById(expandIconId);
-  const compressIcon = document.getElementById(compressIconId);
-  if (!container) return false;
-
-  const isFs = container.classList.contains('fullscreen');
-  const nextFs = (typeof forceState === 'boolean') ? forceState : !isFs;
-
-  if (nextFs) {
-    container.classList.add('fullscreen');
-    if (expandIcon) expandIcon.style.display = 'none';
-    if (compressIcon) compressIcon.style.display = 'block';
-  } else {
-    container.classList.remove('fullscreen');
-    if (expandIcon) expandIcon.style.display = 'block';
-    if (compressIcon) compressIcon.style.display = 'none';
-  }
-  return nextFs;
-}
-
-function toggleAssignmentFullscreen(forceState) {
-  isAssignmentFullscreen = toggleModalFullscreen('assignment-modal-container', 'assignment-expand-icon', 'assignment-compress-icon', forceState);
-}
 
 // 執筆ワイドモードの切り替え
 function toggleEditorWide(forceState) {
@@ -3614,9 +3575,6 @@ function closeAssignmentModal(preserveNav = false) {
   const modal = document.getElementById('assignment-modal');
   const descBox = document.getElementById('modal-description-box') || document.getElementById('modal-description');
   if (modal) modal.classList.remove('open');
-  if (isAssignmentFullscreen) {
-    toggleAssignmentFullscreen(false);
-  }
   if (isEditorWide) {
     toggleEditorWide(false);
   }
@@ -3649,11 +3607,6 @@ function setupModalEvents() {
       modalNav.goBack();
     });
   });
-  
-  const assignFsBtn = document.getElementById('assignment-modal-fullscreen-btn');
-  if (assignFsBtn) {
-    assignFsBtn.addEventListener('click', () => toggleAssignmentFullscreen());
-  }
 
   const editorWideBtn = document.getElementById('btn-toggle-editor-wide');
   if (editorWideBtn) {
@@ -5216,19 +5169,10 @@ async function openDiscussionModal(courseId, topicId, fallbackTitle, itemMeta = 
   }
 }
 
-let isPageFullscreen = false;
-
-function togglePageFullscreen(forceState) {
-  isPageFullscreen = toggleModalFullscreen('page-modal-container', 'page-expand-icon', 'page-compress-icon', forceState);
-}
-
 function closePageModal(preserveNav = false) {
   const modal = document.getElementById('page-modal');
   const bodyEl = document.getElementById('page-modal-body');
   if (modal) modal.classList.remove('open');
-  if (isPageFullscreen) {
-    togglePageFullscreen(false);
-  }
 
   // 講義ノート内の動画・音声・iframe等の完全停止とメモリ解放
   if (bodyEl) {
@@ -5258,11 +5202,6 @@ if (pageExtBtn) {
     const href = pageExtBtn.getAttribute('href');
     if (href && href !== '#') utils.openExternalUrl(href);
   });
-}
-
-const pageFsBtn = document.getElementById('page-modal-fullscreen-btn');
-if (pageFsBtn) {
-  pageFsBtn.addEventListener('click', () => togglePageFullscreen());
 }
 
 document.getElementById('page-modal').addEventListener('click', (e) => {
@@ -5327,13 +5266,8 @@ document.getElementById('btn-download-all-zip').addEventListener('click', async 
 });
 
 // アプリ内 PDF・マルチ形式ファイルプレビューモーダル（全画面表示・動的メモリ解放対応）
-let isPdfFullscreen = false;
 let currentPdfFile = null;
 let pdfSpinnerTimer = null;
-
-function togglePdfFullscreen(forceState) {
-  isPdfFullscreen = toggleModalFullscreen('pdf-modal-container', 'pdf-expand-icon', 'pdf-compress-icon', forceState);
-}
 
 function parseCsvRows(text, delimiter = ',') {
   const rows = [];
@@ -5576,9 +5510,6 @@ function closePdfModal(preserveNav = false) {
   const iframe = document.getElementById('pdf-iframe');
   const customPreview = document.getElementById('file-custom-preview');
   const spinner = document.getElementById('pdf-loading-spinner');
-  if (isPdfFullscreen) {
-    togglePdfFullscreen(false);
-  }
   if (pdfSpinnerTimer) {
     clearTimeout(pdfSpinnerTimer);
     pdfSpinnerTimer = null;
@@ -5614,11 +5545,6 @@ if (pdfCloseBtn) {
   pdfCloseBtn.addEventListener('click', () => closePdfModal());
 }
 
-const pdfFsBtn = document.getElementById('pdf-modal-fullscreen-btn');
-if (pdfFsBtn) {
-  pdfFsBtn.addEventListener('click', () => togglePdfFullscreen());
-}
-
 // PDFモーダル内の保存ボタン
 const pdfDlBtn = document.getElementById('pdf-modal-download-btn');
 if (pdfDlBtn) {
@@ -5649,11 +5575,6 @@ if (pdfDlBtn) {
 
 // アプリ内 YouTube プレイヤー ＆ ダウンローダー
 let currentYtVideoInfo = null;
-let isYouTubeFullscreen = false;
-
-function toggleYouTubeFullscreen(forceState) {
-  isYouTubeFullscreen = toggleModalFullscreen('youtube-modal-container', 'youtube-expand-icon', 'youtube-compress-icon', forceState);
-}
 
 function openYouTubeModal(videoId, title, originalUrl) {
   const modal = document.getElementById('youtube-modal');
@@ -5684,9 +5605,6 @@ function closeYouTubeModal(preserveNav = false) {
   const modal = document.getElementById('youtube-modal');
   const container = document.getElementById('youtube-iframe-container');
   if (modal) modal.classList.remove('open');
-  if (isYouTubeFullscreen) {
-    toggleYouTubeFullscreen(false);
-  }
   // iframe / 動画の確実な停止およびメモリ解放
   if (container) {
     cleanupMediaAndResources(container, true);
@@ -5701,11 +5619,6 @@ function closeYouTubeModal(preserveNav = false) {
 const ytCloseBtn = document.getElementById('youtube-modal-close-btn');
 if (ytCloseBtn) {
   ytCloseBtn.addEventListener('click', () => closeYouTubeModal());
-}
-
-const ytFsBtn = document.getElementById('youtube-modal-fullscreen-btn');
-if (ytFsBtn) {
-  ytFsBtn.addEventListener('click', () => toggleYouTubeFullscreen());
 }
 
 // YouTubeモーダル背景クリックで閉じる
@@ -5781,9 +5694,7 @@ window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     const ytModal = document.getElementById('youtube-modal');
     if (ytModal && ytModal.classList.contains('open')) {
-      if (isYouTubeFullscreen) {
-        toggleYouTubeFullscreen(false);
-      } else if (!modalNav.goBack()) {
+      if (!modalNav.goBack()) {
         closeYouTubeModal();
       }
       return;
@@ -5799,9 +5710,7 @@ window.addEventListener('keydown', (e) => {
 
     const modal = document.getElementById('pdf-modal');
     if (modal && modal.classList.contains('open')) {
-      if (isPdfFullscreen) {
-        togglePdfFullscreen(false);
-      } else if (!modalNav.goBack()) {
+      if (!modalNav.goBack()) {
         closePdfModal();
       }
       return;
@@ -5809,9 +5718,7 @@ window.addEventListener('keydown', (e) => {
 
     const pageModal = document.getElementById('page-modal');
     if (pageModal && pageModal.classList.contains('open')) {
-      if (isPageFullscreen) {
-        togglePageFullscreen(false);
-      } else if (!modalNav.goBack()) {
+      if (!modalNav.goBack()) {
         closePageModal();
       }
       return;

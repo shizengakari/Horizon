@@ -41,6 +41,7 @@ let mainWindow = null;
 let serverInstance = null;
 let actualPort = PORT;
 let downloadsActive = false;
+let refreshWindowFrameRate = null;
 
 // タスクバーのアプリアイコン設定
 app.setName('Horizon');
@@ -131,6 +132,7 @@ if (!gotTheLock) {
           }
         } catch (_) {}
       };
+      refreshWindowFrameRate = updateWindowFrameRate;
       mainWindow.on('minimize', updateWindowFrameRate);
       mainWindow.on('restore', updateWindowFrameRate);
       mainWindow.on('blur', updateWindowFrameRate);
@@ -283,13 +285,15 @@ if (!gotTheLock) {
     }
   });
 
-  // OS電源状態変化イベントのリッスン
+  // OS電源状態変化イベントのリッスン（電源切替時にフレームレートも即時再計算）
   powerMonitor.on('on-battery', () => {
+    if (typeof refreshWindowFrameRate === 'function') refreshWindowFrameRate();
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('power-state-change', { onBattery: true });
     }
   });
   powerMonitor.on('on-ac', () => {
+    if (typeof refreshWindowFrameRate === 'function') refreshWindowFrameRate();
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('power-state-change', { onBattery: false });
     }

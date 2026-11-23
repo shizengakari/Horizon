@@ -675,31 +675,56 @@ pub fn run() {
       }
 
       // Start embedded Rust Axum server on Tauri's Tokio runtime
+      let server_state = server::AppState::new();
+      let maintenance_state = server_state.clone();
       tauri::async_runtime::spawn(async move {
         let listener = tokio::net::TcpListener::from_std(std_listener)
           .expect("Failed to convert std TcpListener to tokio TcpListener");
-        let state = server::AppState::new();
-        let router = server::build_router(state);
+        let router = server::build_router(server_state);
         let _ = axum::serve(listener, router).await;
+      });
+
+      // 30分ごとにメモリキャッシュの期限切れ整理と古いPDFキャッシュの自動パージを実行
+      tauri::async_runtime::spawn(async move {
+        loop {
+          tokio::time::sleep(Duration::from_secs(30 * 60)).await;
+          maintenance_state.canvas.prune_memory_cache();
+          let pdf_dir = maintenance_state.pdf_cache_dir.clone();
+          let _ = tokio::task::spawn_blocking(move || {
+            server::clean_pdf_cache_dir(&pdf_dir);
+          })
+          .await;
+        }
       });
 
       let app_url: tauri::Url = format!("http://127.0.0.1:{}", port)
         .parse()
         .expect("Valid localhost URL");
 
-      let _main_window = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(app_url))
+      let mut win_builder = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(app_url))
         .title("Horizon")
         .inner_size(1380.0, 900.0)
         .min_inner_size(1024.0, 700.0)
-        .center()
-        .build()?;
+        .center();
+      #[cfg(target_os = "windows")]
+      {
+        win_builder = win_builder.additional_browser_args(
+          "--disable-background-networking --disable-component-update --disable-domain-reliability --disable-sync --disable-default-apps --no-pings --js-flags=--optimize-for-size",
+        );
+      }
+      let _main_window = win_builder.build()?;
 
-      // Lightweight battery status monitor (polls OS kernel power struct every 15s, zero CPU impact)
+      // Adaptive lightweight battery monitor (表示中30秒 / 最小化・非表示時90秒間隔でCPUウェイクアップを最小化)
       let app_handle = app.handle().clone();
       tauri::async_runtime::spawn(async move {
         let mut last_battery = server::check_windows_battery_power();
         loop {
-          tokio::time::sleep(Duration::from_secs(15)).await;
+          let is_idle = app_handle
+            .get_webview_window("main")
+            .map(|w| w.is_minimized().unwrap_or(false) || !w.is_visible().unwrap_or(true))
+            .unwrap_or(true);
+          let wait_secs = if is_idle { 90 } else { 30 };
+          tokio::time::sleep(Duration::from_secs(wait_secs)).await;
           let current = server::check_windows_battery_power();
           if current != last_battery {
             last_battery = current;

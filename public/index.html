@@ -18,13 +18,10 @@
   <link rel="icon" type="image/png" href="icons/icon.png">
   <link rel="apple-touch-icon" href="icons/icon.png">
   <link rel="manifest" href="manifest.json">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&family=Plus+Jakarta+Sans:wght@500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=1.4.18">
+  <link rel="stylesheet" href="css/style.css?v=1.4.19">
 </head>
 <body>
-  <canvas id="confetti-canvas"></canvas>
+  <canvas id="confetti-canvas" width="0" height="0"></canvas>
 
   <div class="app-layout">
     <!-- サイドバー -->
@@ -661,12 +658,66 @@
           </button>
         </div>
       </div>
+      <div class="pdf-toolbar" id="pdf-viewer-toolbar" style="display: none;">
+        <div class="pdf-toolbar-group">
+          <button type="button" class="pdf-tool-btn" id="pdf-prev-page-btn" aria-label="前のページ">
+            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 19l-7-7 7-7"/></svg>
+          </button>
+          <div class="pdf-page-indicator">
+            <input type="text" inputmode="numeric" id="pdf-page-input" class="pdf-page-input" value="1" aria-label="現在のページ">
+            <span class="pdf-page-sep">/</span>
+            <span id="pdf-page-total" class="pdf-page-total">-</span>
+          </div>
+          <button type="button" class="pdf-tool-btn" id="pdf-next-page-btn" aria-label="次のページ">
+            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 5l7 7-7 7"/></svg>
+          </button>
+        </div>
+
+        <div class="pdf-toolbar-group">
+          <div class="pdf-segmented" role="group" aria-label="ページ表示レイアウト">
+            <button type="button" class="pdf-seg-btn" id="pdf-mode-single-btn" data-page-mode="single">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="1.5" stroke-width="2"/></svg>
+              <span>1ページ</span>
+            </button>
+            <button type="button" class="pdf-seg-btn active" id="pdf-mode-two-btn" data-page-mode="two-page">
+              <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="8" height="16" rx="1.2" stroke-width="2"/><rect x="13" y="4" width="8" height="16" rx="1.2" stroke-width="2"/></svg>
+              <span>2ページ</span>
+            </button>
+          </div>
+          <button type="button" class="pdf-tool-btn pdf-tool-chip" id="pdf-cover-toggle-btn" aria-pressed="false">
+            <span>表紙単独</span>
+          </button>
+        </div>
+
+        <div class="pdf-toolbar-group">
+          <button type="button" class="pdf-tool-btn" id="pdf-zoom-out-btn" aria-label="縮小">
+            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M5 12h14"/></svg>
+          </button>
+          <span id="pdf-zoom-label" class="pdf-zoom-label">100%</span>
+          <button type="button" class="pdf-tool-btn" id="pdf-zoom-in-btn" aria-label="拡大">
+            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 5v14M5 12h14"/></svg>
+          </button>
+          <div class="pdf-toolbar-divider"></div>
+          <button type="button" class="pdf-tool-btn pdf-tool-chip" id="pdf-fit-page-btn" data-zoom-mode="fit-page">
+            <span>全体</span>
+          </button>
+          <button type="button" class="pdf-tool-btn pdf-tool-chip" id="pdf-fit-width-btn" data-zoom-mode="fit-width">
+            <span>幅合わせ</span>
+          </button>
+          <div class="pdf-toolbar-divider"></div>
+          <button type="button" class="pdf-tool-btn" id="pdf-rotate-btn" aria-label="90度回転">
+            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9"/></svg>
+          </button>
+        </div>
+      </div>
       <div id="pdf-iframe-container" style="flex: 1; position: relative; width: 100%; height: 100%; display: flex; overflow: hidden; background: #1a1a24;">
-        <div id="pdf-loading-spinner" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); background: #111420; z-index: 2; transition: opacity 0.25s ease;">
+        <div id="pdf-loading-spinner" style="position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--text-muted); background: #111420; z-index: 4; transition: opacity 0.25s ease;">
           <svg class="spin" width="28" height="28" fill="none" stroke="var(--accent-primary)" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
           <span style="font-size: 13px; font-weight: 500;">読み込み中...</span>
         </div>
-        <iframe class="pdf-viewer-frame" id="pdf-iframe" style="flex: 1; border: none; width: 100%; height: 100%; position: relative; z-index: 1;"></iframe>
+        <div id="pdf-viewer-host" class="pdf-viewer-host" style="display: none;" tabindex="0">
+          <div id="pdf-pages-container" class="pdf-pages-container"></div>
+        </div>
         <div id="file-custom-preview" class="file-preview-view" style="display: none;"></div>
       </div>
     </div>
@@ -810,14 +861,14 @@
   <div class="toast-container" id="toast-container"></div>
 
   <!-- アプリケーションロジック -->
-  <script src="js/app.js?v=1.4.18"></script>
+  <script src="js/app.js?v=1.4.19"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         if ('caches' in window && (location.hostname === '127.0.0.1' || location.hostname === 'localhost')) {
           caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => {});
         }
-        navigator.serviceWorker.register('/sw.js?v=1.4.18').then((reg) => {
+        navigator.serviceWorker.register('/sw.js?v=1.4.19').then((reg) => {
           reg.update().catch(() => {});
         }).catch((err) => {
           console.debug('ServiceWorker registration skipped/failed:', err);

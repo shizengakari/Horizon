@@ -14,15 +14,16 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::HashMap;
 use std::fs;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Read, SeekFrom};
 use std::path::{Path as StdPath, PathBuf};
 use std::sync::{Arc, LazyLock, Mutex};
-use std::time::Duration;
-use tokio::io::AsyncWriteExt;
+use std::time::{Duration, SystemTime};
+use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+use tokio_util::io::ReaderStream;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
-pub const APP_VERSION: &str = "1.4.18";
+pub const APP_VERSION: &str = "1.4.19";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DownloadJob {
@@ -74,7 +75,7 @@ impl AppState {
         let _ = fs::create_dir_all(&pdf_cache_dir);
         let dir_for_cleanup = pdf_cache_dir.clone();
         std::thread::spawn(move || {
-            purge_invalid_pdf_cache(&dir_for_cleanup);
+            clean_pdf_cache_dir(&dir_for_cleanup);
         });
 
         Self {
@@ -127,13 +128,48 @@ pub fn is_valid_pdf_file(path: &StdPath) -> bool {
 }
 
 pub fn purge_invalid_pdf_cache(dir: &StdPath) {
+    clean_pdf_cache_dir(dir);
+}
+
+/// 破損PDF、48時間以上古いPDF、合計250MBを超過するPDFキャッシュを古い順に自動削除
+pub fn clean_pdf_cache_dir(dir: &StdPath) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
+    const MAX_AGE_SECS: u64 = 48 * 60 * 60;
+    const MAX_TOTAL_BYTES: u64 = 250 * 1024 * 1024;
+    let now = SystemTime::now();
+    let mut total_size: u64 = 0;
+    let mut files: Vec<(PathBuf, u64, SystemTime)> = Vec::new();
+
     for entry in entries.flatten() {
         let p = entry.path();
-        if p.is_file() && !is_valid_pdf_file(&p) {
-            let _ = fs::remove_file(p);
+        if !p.is_file() {
+            continue;
+        }
+        let is_tmp = p.extension().and_then(|e| e.to_str()) == Some("tmp");
+        if is_tmp || !is_valid_pdf_file(&p) {
+            let _ = fs::remove_file(&p);
+            continue;
+        }
+        if let Ok(meta) = fs::metadata(&p) {
+            let size = meta.len();
+            let modified = meta.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+            total_size = total_size.saturating_add(size);
+            files.push((p, size, modified));
+        }
+    }
+
+    files.sort_by_key(|(_, _, mtime)| *mtime);
+    for (path, size, mtime) in files {
+        let expired = now
+            .duration_since(mtime)
+            .map(|d| d.as_secs() > MAX_AGE_SECS)
+            .unwrap_or(false);
+        if expired || total_size > MAX_TOTAL_BYTES {
+            if fs::remove_file(&path).is_ok() {
+                total_size = total_size.saturating_sub(size);
+            }
         }
     }
 }
@@ -175,6 +211,7 @@ pub fn ext_to_mime(ext: &str) -> Option<&'static str> {
         ".txt" | ".log" | ".py" | ".java" | ".c" | ".cpp" | ".h" | ".hpp" | ".cs" | ".go"
         | ".rs" | ".rb" | ".php" | ".sh" | ".bat" | ".ps1" | ".sql" | ".yaml" | ".yml"
         | ".toml" | ".ini" | ".r" | ".tex" | ".js" | ".ts" => Some("text/plain; charset=utf-8"),
+        ".mjs" => Some("application/javascript; charset=utf-8"),
         ".md" => Some("text/markdown; charset=utf-8"),
         ".json" | ".ipynb" => Some("application/json; charset=utf-8"),
         ".xml" => Some("application/xml; charset=utf-8"),
@@ -1014,14 +1051,16 @@ async fn api_get_file_meta(
     }))
 }
 
-fn serve_local_file_with_range(
+async fn serve_local_file_with_range(
     file_path: &StdPath,
     content_type: &str,
     disposition: &str,
     range_header: Option<&str>,
 ) -> Result<Response, String> {
-    let mut file = fs::File::open(file_path).map_err(|e| e.to_string())?;
-    let total_size = file.metadata().map_err(|e| e.to_string())?.len();
+    let mut file = tokio::fs::File::open(file_path)
+        .await
+        .map_err(|e| e.to_string())?;
+    let total_size = file.metadata().await.map_err(|e| e.to_string())?.len();
 
     if let Some(range_str) = range_header.and_then(|r| r.strip_prefix("bytes=")) {
         let parts: Vec<&str> = range_str.split('-').collect();
@@ -1044,9 +1083,10 @@ fn serve_local_file_with_range(
         if start < total_size && start <= end {
             let chunk_len = end - start + 1;
             file.seek(SeekFrom::Start(start))
+                .await
                 .map_err(|e| e.to_string())?;
-            let mut buf = vec![0u8; chunk_len as usize];
-            file.read_exact(&mut buf).map_err(|e| e.to_string())?;
+            // 非同期ストリーミング配信（巨大PDFでも全バイトをRAMに展開せず64KBチャンクで送信）
+            let stream = ReaderStream::with_capacity(file.take(chunk_len), 64 * 1024);
 
             return Response::builder()
                 .status(StatusCode::PARTIAL_CONTENT)
@@ -1059,13 +1099,12 @@ fn serve_local_file_with_range(
                     format!("bytes {}-{}/{}", start, end, total_size),
                 )
                 .header(header::CACHE_CONTROL, "public, max-age=86400")
-                .body(Body::from(buf))
+                .body(Body::from_stream(stream))
                 .map_err(|e| e.to_string());
         }
     }
 
-    let mut buf = Vec::with_capacity(total_size as usize);
-    file.read_to_end(&mut buf).map_err(|e| e.to_string())?;
+    let stream = ReaderStream::with_capacity(file, 64 * 1024);
     Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, content_type)
@@ -1073,7 +1112,7 @@ fn serve_local_file_with_range(
         .header(header::ACCEPT_RANGES, "bytes")
         .header(header::CONTENT_LENGTH, total_size.to_string())
         .header(header::CACHE_CONTROL, "public, max-age=86400")
-        .body(Body::from(buf))
+        .body(Body::from_stream(stream))
         .map_err(|e| e.to_string())
 }
 
@@ -1131,8 +1170,10 @@ async fn ensure_pdf_cached(
     let temp_path = state
         .pdf_cache_dir
         .join(format!("{}.{}.tmp", file_id, now_ms()));
-    fs::write(&temp_path, &bytes).map_err(|e| e.to_string())?;
-    let _ = fs::rename(&temp_path, &cached_path);
+    tokio::fs::write(&temp_path, &bytes)
+        .await
+        .map_err(|e| e.to_string())?;
+    let _ = tokio::fs::rename(&temp_path, &cached_path).await;
     Ok(cached_path)
 }
 
@@ -1219,7 +1260,9 @@ async fn api_download_file(
                     "application/pdf",
                     &disp,
                     range_header,
-                ) {
+                )
+                .await
+                {
                     return resp;
                 }
             } else {
@@ -1364,6 +1407,7 @@ async fn api_download_file(
             );
             if let Ok(resp) =
                 serve_local_file_with_range(&cached_path, "application/pdf", &disp, range_header)
+                    .await
             {
                 return resp;
             }
@@ -2425,6 +2469,8 @@ const EMBED_MANIFEST_JSON: &str = include_str!("../../public/manifest.json");
 const EMBED_SW_JS: &str = include_str!("../../public/sw.js");
 const EMBED_ICON_PNG: &[u8] = include_bytes!("../../public/icons/icon.png");
 const EMBED_ICON_ICO: &[u8] = include_bytes!("../../public/icons/icon.ico");
+const EMBED_PDF_MJS: &str = include_str!("../../public/vendor/pdfjs/pdf.min.mjs");
+const EMBED_PDF_WORKER_MJS: &str = include_str!("../../public/vendor/pdfjs/pdf.worker.min.mjs");
 
 pub fn resolve_public_dir() -> PathBuf {
     let candidates = [
@@ -2565,6 +2611,30 @@ async fn serve_embedded_or_disk(uri: axum::http::Uri) -> Response {
             StatusCode::OK,
             [(header::CONTENT_TYPE, "image/x-icon")],
             EMBED_ICON_ICO.to_vec(),
+        )
+            .into_response(),
+        "vendor/pdfjs/pdf.min.mjs" => (
+            StatusCode::OK,
+            [
+                (
+                    header::CONTENT_TYPE,
+                    "application/javascript; charset=utf-8",
+                ),
+                (header::CACHE_CONTROL, "public, max-age=86400"),
+            ],
+            EMBED_PDF_MJS.as_bytes().to_vec(),
+        )
+            .into_response(),
+        "vendor/pdfjs/pdf.worker.min.mjs" => (
+            StatusCode::OK,
+            [
+                (
+                    header::CONTENT_TYPE,
+                    "application/javascript; charset=utf-8",
+                ),
+                (header::CACHE_CONTROL, "public, max-age=86400"),
+            ],
+            EMBED_PDF_WORKER_MJS.as_bytes().to_vec(),
         )
             .into_response(),
         _ => (StatusCode::NOT_FOUND, "Not Found").into_response(),

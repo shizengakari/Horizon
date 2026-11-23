@@ -130,6 +130,7 @@ if (typeof window !== 'undefined' && !window.desktopAPI) {
 
 const STORAGE_KEY_BATTERY_MODE = 'horizon_battery_mode';
 const STORAGE_KEY_MANUAL_COMPLETED = 'horizon_manual_completed';
+const STORAGE_KEY_PDF_VIEWER_PREFS = 'horizon_pdf_viewer_prefs';
 try {
   if (!localStorage.getItem(STORAGE_KEY_BATTERY_MODE) && localStorage.getItem('canvas_horizon_battery_mode')) {
     localStorage.setItem(STORAGE_KEY_BATTERY_MODE, localStorage.getItem('canvas_horizon_battery_mode'));
@@ -1610,6 +1611,10 @@ async function setupBatteryManager() {
       if (typeof downloadManager !== 'undefined' && downloadManager.pollTimer) {
         downloadManager.stopPolling();
       }
+      // PDF表示中なら画面外ページのCanvas/VRAMを即時解放してバックグラウンドメモリを最小化
+      if (typeof pdfViewer !== 'undefined' && pdfViewer.pdfDoc) {
+        pdfViewer.evictDistantPages(pdfViewer.currentPage, 2);
+      }
     } else {
       // 画面復帰時、フラグを解除
       const suspendedVideos = document.querySelectorAll('video[data-paused-by-visibility="true"], audio[data-paused-by-visibility="true"]');
@@ -1622,6 +1627,14 @@ async function setupBatteryManager() {
         downloadManager.startPolling();
       }
     }
+  });
+
+  // ウィンドウ非フォーカス時は装飾用無限アニメーションを停止してGPUウェイクアップを抑制
+  window.addEventListener('blur', () => {
+    document.body.classList.add('app-unfocused');
+  });
+  window.addEventListener('focus', () => {
+    document.body.classList.remove('app-unfocused');
   });
 
   window.evaluateAppBatterySaving = evaluateBatterySaving;
@@ -4097,43 +4110,40 @@ function filterMaterialsInDom(query) {
 // クライアント側講義資料キャッシュ管理 (バッテリー節約 & 即時ゼロディレイ表示)
 const CLIENT_MATERIALS_CACHE_TTL = 60 * 60 * 1000; // 60分間有効
 const CLIENT_MATERIALS_FRESH_TTL = 15 * 60 * 1000; // 15分間は完全最新（追加検証不要でバッテリー保護）
-const MAX_MATERIALS_IN_MEMORY = 16; // メモリ肥大化を防ぐ上限件数
+const MAX_MATERIALS_IN_MEMORY = 12; // メモリ肥大化を防ぐ上限件数
+const MAX_MATERIALS_IN_STORAGE = 12; // localStorage肥大化を防ぐ最大保存科目数
 
 function getCachedMaterialsEntry(courseId) {
   if (!courseId) return null;
   const cacheKey = String(courseId);
 
-  // 1. インメモリキャッシュ
+  // 1. インメモリキャッシュ（LRU順序を更新）
   if (state.materialsCache.has(cacheKey)) {
     const entry = state.materialsCache.get(cacheKey);
     const data = (entry && entry.data) ? entry.data : entry;
     const time = (entry && entry.timestamp) ? entry.timestamp : 0;
     if (data && (Date.now() - time < CLIENT_MATERIALS_CACHE_TTL)) {
+      state.materialsCache.delete(cacheKey);
+      state.materialsCache.set(cacheKey, entry);
       return { data, timestamp: time };
     }
+    state.materialsCache.delete(cacheKey);
   }
 
-  // 2. セッションストレージ (タブ/ウィンドウを開いている間の高速復旧)
-  try {
-    const raw = sessionStorage.getItem(`horizon_materials_${cacheKey}`);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && parsed.data && (Date.now() - (parsed.timestamp || 0) < CLIENT_MATERIALS_CACHE_TTL)) {
-        state.materialsCache.set(cacheKey, parsed);
-        return { data: parsed.data, timestamp: parsed.timestamp || 0 };
-      }
-    }
-  } catch (_) {}
-
-  // 3. ローカルストレージ (アプリ再起動後も即座に0msで描画可能)
+  // 2. ローカルストレージ (アプリ再起動後も即座に0msで描画可能・二重書き込み廃止)
   try {
     const raw = localStorage.getItem(`horizon_materials_${cacheKey}`);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && parsed.data && (Date.now() - (parsed.timestamp || 0) < CLIENT_MATERIALS_CACHE_TTL)) {
+        if (state.materialsCache.size >= MAX_MATERIALS_IN_MEMORY) {
+          const oldestKey = state.materialsCache.keys().next().value;
+          if (oldestKey) state.materialsCache.delete(oldestKey);
+        }
         state.materialsCache.set(cacheKey, parsed);
         return { data: parsed.data, timestamp: parsed.timestamp || 0 };
       }
+      localStorage.removeItem(`horizon_materials_${cacheKey}`);
     }
   } catch (_) {}
 
@@ -4143,6 +4153,30 @@ function getCachedMaterialsEntry(courseId) {
 function getCachedMaterials(courseId) {
   const entry = getCachedMaterialsEntry(courseId);
   return entry ? entry.data : null;
+}
+
+function pruneMaterialsLocalStorage(maxEntries = MAX_MATERIALS_IN_STORAGE) {
+  try {
+    const entries = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && (k.startsWith('horizon_materials_') || k.startsWith('canvas_horizon_materials_'))) {
+        let ts = 0;
+        try {
+          const raw = localStorage.getItem(k);
+          const m = raw && raw.match(/"timestamp":(\d+)/);
+          if (m) ts = Number(m[1]) || 0;
+        } catch (_) {}
+        entries.push({ key: k, ts });
+      }
+    }
+    if (entries.length <= maxEntries) return;
+    entries.sort((a, b) => a.ts - b.ts);
+    const excess = entries.length - maxEntries;
+    for (let i = 0; i < excess; i++) {
+      localStorage.removeItem(entries[i].key);
+    }
+  } catch (_) {}
 }
 
 function setCachedMaterials(courseId, modules) {
@@ -4161,48 +4195,33 @@ function setCachedMaterials(courseId, modules) {
   state.materialsCache.set(cacheKey, entry);
 
   const serialized = JSON.stringify(entry);
-
-  try {
-    sessionStorage.setItem(`horizon_materials_${cacheKey}`, serialized);
-  } catch (err) {
-    // QuotaExceededError が発生した場合は古い講義資料セッションストレージキーをパージ
-    try {
-      for (let i = sessionStorage.length - 1; i >= 0; i--) {
-        const k = sessionStorage.key(i);
-        if (k && (k.startsWith('horizon_materials_') || k.startsWith('canvas_horizon_materials_'))) {
-          sessionStorage.removeItem(k);
-        }
-      }
-      sessionStorage.setItem(`horizon_materials_${cacheKey}`, serialized);
-    } catch (_) {}
-  }
-
   try {
     localStorage.setItem(`horizon_materials_${cacheKey}`, serialized);
+    pruneMaterialsLocalStorage(MAX_MATERIALS_IN_STORAGE);
   } catch (err) {
     // QuotaExceededError 発生時は古い科目キャッシュを自動パージ
     try {
-      const keys = [];
-      for (let i = 0; i < localStorage.length; i++) {
-        const k = localStorage.key(i);
-        if (k && (k.startsWith('horizon_materials_') || k.startsWith('canvas_horizon_materials_'))) {
-          keys.push(k);
-        }
-      }
-      keys.forEach(k => localStorage.removeItem(k));
+      pruneMaterialsLocalStorage(Math.max(2, Math.floor(MAX_MATERIALS_IN_STORAGE / 2)));
       localStorage.setItem(`horizon_materials_${cacheKey}`, serialized);
-    } catch (_) {}
+    } catch (_) {
+      try {
+        for (let i = localStorage.length - 1; i >= 0; i--) {
+          const k = localStorage.key(i);
+          if (k && (k.startsWith('horizon_materials_') || k.startsWith('canvas_horizon_materials_'))) {
+            localStorage.removeItem(k);
+          }
+        }
+        localStorage.setItem(`horizon_materials_${cacheKey}`, serialized);
+      } catch (__) {}
+    }
   }
 }
 
-// 特定コースの講義資料クライアントキャッシュ（メモリ＋sessionStorage＋localStorage）を即時破棄
+// 特定コースの講義資料クライアントキャッシュ（メモリ＋localStorage）を即時破棄
 function invalidateCourseMaterialsCache(courseId) {
   if (!courseId) return;
   const cacheKey = String(courseId);
   state.materialsCache.delete(cacheKey);
-  try {
-    sessionStorage.removeItem(`horizon_materials_${cacheKey}`);
-  } catch (_) {}
   try {
     localStorage.removeItem(`horizon_materials_${cacheKey}`);
   } catch (_) {}
@@ -5265,9 +5284,694 @@ document.getElementById('btn-download-all-zip').addEventListener('click', async 
   }
 });
 
-// アプリ内 PDF・マルチ形式ファイルプレビューモーダル（全画面表示・動的メモリ解放対応）
+// アプリ内 PDF・マルチ形式ファイルプレビューモーダル（PDF.jsカスタムビューア・デフォルト2ページ表示・設定記憶・動的メモリ解放対応）
 let currentPdfFile = null;
 let pdfSpinnerTimer = null;
+
+const PDFJS_CDN_VERSION = '6.5.438';
+const DEFAULT_PDF_VIEWER_PREFS = Object.freeze({
+  pageMode: 'two-page', // 'two-page' (デフォルト2ページ表示) | 'single' (1ページ表示)
+  coverPage: false,     // 2ページ表示時に1ページ目を表紙として単独表示するか
+  zoomMode: 'fit-page', // 'fit-page' | 'fit-width' | 'custom'
+  scale: 1.0            // zoomMode === 'custom' のときの倍率
+});
+
+function normalizePdfViewerPrefs(raw) {
+  const src = (raw && typeof raw === 'object') ? raw : {};
+  const pageMode = (src.pageMode === 'single' || src.pageMode === 'two-page')
+    ? src.pageMode
+    : DEFAULT_PDF_VIEWER_PREFS.pageMode;
+  const coverPage = typeof src.coverPage === 'boolean'
+    ? src.coverPage
+    : DEFAULT_PDF_VIEWER_PREFS.coverPage;
+  const zoomMode = (src.zoomMode === 'fit-page' || src.zoomMode === 'fit-width' || src.zoomMode === 'custom')
+    ? src.zoomMode
+    : DEFAULT_PDF_VIEWER_PREFS.zoomMode;
+  const parsedScale = Number(src.scale);
+  const scale = Number.isFinite(parsedScale)
+    ? Math.min(4.0, Math.max(0.4, Math.round(parsedScale * 100) / 100))
+    : DEFAULT_PDF_VIEWER_PREFS.scale;
+  return { pageMode, coverPage, zoomMode, scale };
+}
+
+function loadPdfViewerPrefs() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_PDF_VIEWER_PREFS);
+    if (!raw) return { ...DEFAULT_PDF_VIEWER_PREFS };
+    return normalizePdfViewerPrefs(JSON.parse(raw));
+  } catch (_) {
+    return { ...DEFAULT_PDF_VIEWER_PREFS };
+  }
+}
+
+function savePdfViewerPrefs(partial) {
+  const current = loadPdfViewerPrefs();
+  const next = normalizePdfViewerPrefs({ ...current, ...(partial || {}) });
+  try {
+    localStorage.setItem(STORAGE_KEY_PDF_VIEWER_PREFS, JSON.stringify(next));
+  } catch (_) {}
+  return next;
+}
+
+function buildPdfPageSpreads(numPages, pageMode = 'two-page', coverPage = false) {
+  const total = Math.max(0, Math.floor(Number(numPages) || 0));
+  if (total === 0) return [];
+  if (pageMode === 'single' || total === 1) {
+    const rows = [];
+    for (let p = 1; p <= total; p++) rows.push([p]);
+    return rows;
+  }
+  const rows = [];
+  let start = 1;
+  if (coverPage) {
+    rows.push([1]);
+    start = 2;
+  }
+  for (let p = start; p <= total; p += 2) {
+    if (p + 1 <= total) rows.push([p, p + 1]);
+    else rows.push([p]);
+  }
+  return rows;
+}
+
+function computePdfRenderScale({ viewportWidth, viewportHeight, pageWidth, pageHeight, pageMode, numPages, zoomMode, customScale }) {
+  const safeW = Math.max(200, Number(viewportWidth) || 900);
+  const safeH = Math.max(200, Number(viewportHeight) || 680);
+  const pw = Math.max(1, Number(pageWidth) || 595);
+  const ph = Math.max(1, Number(pageHeight) || 842);
+
+  if (zoomMode === 'custom') {
+    const s = Number(customScale);
+    return Number.isFinite(s) ? Math.min(4.0, Math.max(0.4, s)) : 1.0;
+  }
+
+  const cols = (pageMode === 'two-page' && (Number(numPages) || 1) > 1) ? 2 : 1;
+  const padX = 48;
+  const padY = 40;
+  const gap = cols === 2 ? 16 : 0;
+  const fitWidth = (safeW - padX - gap) / (pw * cols);
+  if (zoomMode === 'fit-width') {
+    return Math.min(4.0, Math.max(0.25, fitWidth));
+  }
+  const fitHeight = (safeH - padY) / ph;
+  return Math.min(4.0, Math.max(0.25, Math.min(fitWidth, fitHeight)));
+}
+
+const pdfViewer = {
+  libPromise: null,
+  pdfDoc: null,
+  loadingTask: null,
+  loadToken: 0,
+  numPages: 0,
+  currentPage: 1,
+  rotation: 0,
+  basePageWidth: 595,
+  basePageHeight: 842,
+  effectiveScale: 1.0,
+  prefs: loadPdfViewerPrefs(),
+  renderedPages: new Set(),
+  renderTasks: new Map(),
+  textLayerTasks: new Map(),
+  pageSlotMap: new Map(),
+  observer: null,
+  resizeObserver: null,
+  resizeTimer: null,
+  scrollRaf: null,
+  controlsBound: false,
+
+  async ensureLib() {
+    if (!this.libPromise) {
+      this.libPromise = import('/vendor/pdfjs/pdf.min.mjs').then((lib) => {
+        if (lib?.GlobalWorkerOptions) {
+          lib.GlobalWorkerOptions.workerSrc = '/vendor/pdfjs/pdf.worker.min.mjs';
+        }
+        return lib;
+      }).catch((err) => {
+        this.libPromise = null;
+        throw err;
+      });
+    }
+    return this.libPromise;
+  },
+
+  bindControls() {
+    if (this.controlsBound) return;
+    this.controlsBound = true;
+
+    const prevBtn = document.getElementById('pdf-prev-page-btn');
+    const nextBtn = document.getElementById('pdf-next-page-btn');
+    const pageInput = document.getElementById('pdf-page-input');
+    const singleBtn = document.getElementById('pdf-mode-single-btn');
+    const twoBtn = document.getElementById('pdf-mode-two-btn');
+    const coverBtn = document.getElementById('pdf-cover-toggle-btn');
+    const zoomOutBtn = document.getElementById('pdf-zoom-out-btn');
+    const zoomInBtn = document.getElementById('pdf-zoom-in-btn');
+    const fitPageBtn = document.getElementById('pdf-fit-page-btn');
+    const fitWidthBtn = document.getElementById('pdf-fit-width-btn');
+    const rotateBtn = document.getElementById('pdf-rotate-btn');
+    const host = document.getElementById('pdf-viewer-host');
+
+    if (prevBtn) prevBtn.addEventListener('click', () => this.stepSpread(-1));
+    if (nextBtn) nextBtn.addEventListener('click', () => this.stepSpread(1));
+
+    if (pageInput) {
+      const commitPage = () => {
+        const val = parseInt(pageInput.value, 10);
+        if (Number.isFinite(val) && this.numPages > 0) {
+          const target = Math.min(this.numPages, Math.max(1, val));
+          this.scrollToPage(target, true);
+        } else {
+          pageInput.value = String(this.currentPage || 1);
+        }
+      };
+      pageInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          commitPage();
+          pageInput.blur();
+        }
+      });
+      pageInput.addEventListener('blur', commitPage);
+    }
+
+    if (singleBtn) {
+      singleBtn.addEventListener('click', () => this.updatePrefs({ pageMode: 'single' }));
+    }
+    if (twoBtn) {
+      twoBtn.addEventListener('click', () => this.updatePrefs({ pageMode: 'two-page' }));
+    }
+    if (coverBtn) {
+      coverBtn.addEventListener('click', () => {
+        this.updatePrefs({ coverPage: !this.prefs.coverPage });
+      });
+    }
+
+    if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => this.stepZoom(-0.15));
+    if (zoomInBtn) zoomInBtn.addEventListener('click', () => this.stepZoom(0.15));
+    if (fitPageBtn) fitPageBtn.addEventListener('click', () => this.updatePrefs({ zoomMode: 'fit-page' }));
+    if (fitWidthBtn) fitWidthBtn.addEventListener('click', () => this.updatePrefs({ zoomMode: 'fit-width' }));
+
+    if (rotateBtn) {
+      rotateBtn.addEventListener('click', () => {
+        if (!this.pdfDoc) return;
+        this.rotation = (this.rotation + 90) % 360;
+        this.rebuildLayout(this.currentPage);
+      });
+    }
+
+    if (host) {
+      host.addEventListener('scroll', () => {
+        if (this.scrollRaf) return;
+        this.scrollRaf = requestAnimationFrame(() => {
+          this.scrollRaf = null;
+          this.syncCurrentPageFromScroll();
+        });
+      }, { passive: true });
+
+      host.addEventListener('wheel', (e) => {
+        if (e.ctrlKey || e.metaKey) {
+          e.preventDefault();
+          this.stepZoom(e.deltaY < 0 ? 0.12 : -0.12);
+        }
+      }, { passive: false });
+
+      if (typeof ResizeObserver !== 'undefined') {
+        this.resizeObserver = new ResizeObserver(() => {
+          if (!this.pdfDoc) return;
+          if (this.prefs.zoomMode === 'custom') return;
+          if (this.resizeTimer) clearTimeout(this.resizeTimer);
+          this.resizeTimer = setTimeout(() => {
+            this.resizeTimer = null;
+            if (this.pdfDoc && this.prefs.zoomMode !== 'custom') {
+              this.rebuildLayout(this.currentPage);
+            }
+          }, 120);
+        });
+        this.resizeObserver.observe(host);
+      }
+    }
+
+    document.addEventListener('keydown', (e) => {
+      const modal = document.getElementById('pdf-modal');
+      if (!modal || !modal.classList.contains('open') || !this.pdfDoc) return;
+      const activeTag = (document.activeElement?.tagName || '').toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea') return;
+
+      if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+        e.preventDefault();
+        this.stepSpread(1);
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        this.stepSpread(-1);
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === '+' || e.key === '=')) {
+        e.preventDefault();
+        this.stepZoom(0.15);
+      } else if ((e.ctrlKey || e.metaKey) && e.key === '-') {
+        e.preventDefault();
+        this.stepZoom(-0.15);
+      } else if ((e.ctrlKey || e.metaKey) && e.key === '0') {
+        e.preventDefault();
+        this.updatePrefs({ zoomMode: 'fit-page' });
+      }
+    });
+  },
+
+  syncToolbarUI() {
+    const singleBtn = document.getElementById('pdf-mode-single-btn');
+    const twoBtn = document.getElementById('pdf-mode-two-btn');
+    const coverBtn = document.getElementById('pdf-cover-toggle-btn');
+    const fitPageBtn = document.getElementById('pdf-fit-page-btn');
+    const fitWidthBtn = document.getElementById('pdf-fit-width-btn');
+    const zoomLabel = document.getElementById('pdf-zoom-label');
+    const pageInput = document.getElementById('pdf-page-input');
+    const pageTotal = document.getElementById('pdf-page-total');
+    const prevBtn = document.getElementById('pdf-prev-page-btn');
+    const nextBtn = document.getElementById('pdf-next-page-btn');
+
+    if (singleBtn) singleBtn.classList.toggle('active', this.prefs.pageMode === 'single');
+    if (twoBtn) twoBtn.classList.toggle('active', this.prefs.pageMode === 'two-page');
+    if (coverBtn) {
+      const isTwo = this.prefs.pageMode === 'two-page';
+      coverBtn.style.display = isTwo ? '' : 'none';
+      coverBtn.classList.toggle('active', isTwo && this.prefs.coverPage);
+      coverBtn.setAttribute('aria-pressed', String(isTwo && this.prefs.coverPage));
+    }
+    if (fitPageBtn) fitPageBtn.classList.toggle('active', this.prefs.zoomMode === 'fit-page');
+    if (fitWidthBtn) fitWidthBtn.classList.toggle('active', this.prefs.zoomMode === 'fit-width');
+    if (zoomLabel) zoomLabel.textContent = `${Math.round((this.effectiveScale || 1) * 100)}%`;
+    if (pageTotal) pageTotal.textContent = this.numPages > 0 ? String(this.numPages) : '-';
+    if (pageInput && document.activeElement !== pageInput) {
+      pageInput.value = String(this.currentPage || 1);
+    }
+    if (prevBtn) prevBtn.disabled = this.currentPage <= 1;
+    if (nextBtn) nextBtn.disabled = this.numPages <= 0 || this.currentPage >= this.numPages;
+  },
+
+  updatePrefs(partial) {
+    this.prefs = savePdfViewerPrefs(partial);
+    this.syncToolbarUI();
+    if (this.pdfDoc) {
+      this.rebuildLayout(this.currentPage);
+    }
+  },
+
+  stepZoom(delta) {
+    const base = this.effectiveScale || this.prefs.scale || 1.0;
+    const nextScale = Math.min(4.0, Math.max(0.4, Math.round((base + delta) * 100) / 100));
+    this.updatePrefs({ zoomMode: 'custom', scale: nextScale });
+  },
+
+  stepSpread(direction) {
+    if (!this.pdfDoc || this.numPages <= 0) return;
+    const spreads = buildPdfPageSpreads(this.numPages, this.prefs.pageMode, this.prefs.coverPage);
+    let idx = spreads.findIndex(row => row.includes(this.currentPage));
+    if (idx < 0) idx = 0;
+    const nextIdx = Math.min(spreads.length - 1, Math.max(0, idx + direction));
+    const targetPage = spreads[nextIdx][0];
+    this.scrollToPage(targetPage, true);
+  },
+
+  scrollToPage(pageNum, smooth = false) {
+    const slot = this.pageSlotMap.get(pageNum);
+    const host = document.getElementById('pdf-viewer-host');
+    if (!slot || !host) return;
+    const row = slot.closest('.pdf-spread-row') || slot;
+    const targetTop = Math.max(0, row.offsetTop - 16);
+    host.scrollTo({ top: targetTop, behavior: smooth ? 'smooth' : 'auto' });
+    this.currentPage = pageNum;
+    this.syncToolbarUI();
+  },
+
+  syncCurrentPageFromScroll() {
+    const host = document.getElementById('pdf-viewer-host');
+    const pagesContainer = document.getElementById('pdf-pages-container');
+    if (!host || !pagesContainer || this.numPages <= 0) return;
+    const rows = pagesContainer.querySelectorAll('.pdf-spread-row');
+    if (!rows.length) return;
+    const viewMid = host.scrollTop + host.clientHeight * 0.35;
+    let bestPage = this.currentPage;
+    let bestDist = Infinity;
+    rows.forEach((row) => {
+      const top = row.offsetTop;
+      const bottom = top + row.offsetHeight;
+      const dist = (viewMid >= top && viewMid <= bottom)
+        ? 0
+        : Math.min(Math.abs(viewMid - top), Math.abs(viewMid - bottom));
+      if (dist < bestDist) {
+        bestDist = dist;
+        const p = parseInt(row.dataset.firstPage, 10);
+        if (Number.isFinite(p)) bestPage = p;
+      }
+    });
+    if (bestPage !== this.currentPage) {
+      this.currentPage = bestPage;
+      this.syncToolbarUI();
+    }
+  },
+
+  getMaxRenderedPages() {
+    return (typeof state !== 'undefined' && state.isBatterySaving) ? 8 : 12;
+  },
+
+  getEffectiveDpr() {
+    const raw = (typeof window !== 'undefined' && window.devicePixelRatio) ? window.devicePixelRatio : 1;
+    const cap = (typeof state !== 'undefined' && state.isBatterySaving) ? 1.5 : 2.0;
+    return Math.min(raw, cap);
+  },
+
+  unloadPage(pageNum) {
+    const task = this.renderTasks.get(pageNum);
+    if (task) {
+      try { task.cancel(); } catch (_) {}
+      this.renderTasks.delete(pageNum);
+    }
+    const tl = this.textLayerTasks.get(pageNum);
+    if (tl) {
+      try { tl.cancel(); } catch (_) {}
+      this.textLayerTasks.delete(pageNum);
+    }
+    const slot = this.pageSlotMap.get(pageNum);
+    if (slot) {
+      slot.querySelectorAll('canvas').forEach((cv) => {
+        // Canvas の GPU/VRAM バックバッファを明示的に解放
+        cv.width = 0;
+        cv.height = 0;
+        cv.remove();
+      });
+      slot.querySelectorAll('.textLayer').forEach((el) => el.remove());
+    }
+    this.renderedPages.delete(pageNum);
+  },
+
+  evictDistantPages(anchorPage = this.currentPage, maxKeep = this.getMaxRenderedPages()) {
+    const limit = Math.max(2, Number(maxKeep) || 12);
+    if (this.renderedPages.size <= limit) return;
+    const anchor = Math.max(1, Number(anchorPage) || 1);
+    const ranked = Array.from(this.renderedPages).sort((a, b) => {
+      const distA = Math.abs(a - anchor);
+      const distB = Math.abs(b - anchor);
+      return distB - distA;
+    });
+    const toRemove = ranked.slice(0, this.renderedPages.size - limit);
+    toRemove.forEach((p) => this.unloadPage(p));
+  },
+
+  cancelRenderTasks() {
+    this.renderTasks.forEach((task) => {
+      try { task.cancel(); } catch (_) {}
+    });
+    this.renderTasks.clear();
+    this.textLayerTasks.forEach((tl) => {
+      try { tl.cancel(); } catch (_) {}
+    });
+    this.textLayerTasks.clear();
+    this.pageSlotMap.forEach((slot) => {
+      slot.querySelectorAll('canvas').forEach((cv) => {
+        cv.width = 0;
+        cv.height = 0;
+        cv.remove();
+      });
+      slot.querySelectorAll('.textLayer').forEach((el) => el.remove());
+    });
+    this.renderedPages.clear();
+    if (this.observer) {
+      this.observer.disconnect();
+      this.observer = null;
+    }
+  },
+
+  async destroy() {
+    this.loadToken++;
+    if (this.resizeTimer) {
+      clearTimeout(this.resizeTimer);
+      this.resizeTimer = null;
+    }
+    this.cancelRenderTasks();
+    this.pageSlotMap.clear();
+    this.numPages = 0;
+    this.currentPage = 1;
+    this.rotation = 0;
+
+    if (this.loadingTask) {
+      try { await this.loadingTask.destroy(); } catch (_) {}
+      this.loadingTask = null;
+    }
+    if (this.pdfDoc) {
+      try { await this.pdfDoc.destroy(); } catch (_) {}
+      this.pdfDoc = null;
+    }
+
+    const pagesContainer = document.getElementById('pdf-pages-container');
+    if (pagesContainer) pagesContainer.innerHTML = '';
+  },
+
+  async open(url, onReady) {
+    this.bindControls();
+    this.prefs = loadPdfViewerPrefs();
+    await this.destroy();
+    const token = ++this.loadToken;
+
+    const toolbar = document.getElementById('pdf-viewer-toolbar');
+    const host = document.getElementById('pdf-viewer-host');
+    const pagesContainer = document.getElementById('pdf-pages-container');
+    if (toolbar) toolbar.style.display = 'flex';
+    if (host) {
+      host.style.display = 'block';
+      host.scrollTop = 0;
+    }
+    if (pagesContainer) pagesContainer.innerHTML = '';
+    this.syncToolbarUI();
+
+    try {
+      const pdfjsLib = await this.ensureLib();
+      if (token !== this.loadToken) return;
+
+      const loadingTask = pdfjsLib.getDocument({
+        url,
+        cMapUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_CDN_VERSION}/cmaps/`,
+        cMapPacked: true,
+        standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_CDN_VERSION}/standard_fonts/`,
+        rangeChunkSize: 65536,
+        isEvalSupported: false
+      });
+      this.loadingTask = loadingTask;
+
+      const pdfDoc = await loadingTask.promise;
+      if (token !== this.loadToken) {
+        try { await pdfDoc.destroy(); } catch (_) {}
+        return;
+      }
+
+      this.pdfDoc = pdfDoc;
+      this.numPages = pdfDoc.numPages || 0;
+      this.currentPage = 1;
+      this.rotation = 0;
+
+      if (this.numPages > 0) {
+        const firstPage = await pdfDoc.getPage(1);
+        if (token !== this.loadToken) return;
+        const baseVp = firstPage.getViewport({ scale: 1, rotation: 0 });
+        this.basePageWidth = baseVp.width || 595;
+        this.basePageHeight = baseVp.height || 842;
+      }
+
+      await this.rebuildLayout(1, token);
+      if (token === this.loadToken && typeof onReady === 'function') {
+        onReady();
+      }
+    } catch (err) {
+      if (token !== this.loadToken) return;
+      console.error('PDF.js load error:', err);
+      if (typeof onReady === 'function') onReady();
+      if (pagesContainer) {
+        pagesContainer.innerHTML = `
+          <div class="pdf-viewer-error">
+            <p>PDFのプレビュー読み込みに失敗しました。</p>
+            <p class="pdf-viewer-error-detail">${utils.escapeHtml(err?.message || 'Unknown error')}</p>
+            <p style="font-size: 12px; opacity: 0.8;">右上の「保存」ボタンからダウンロードしてご確認ください。</p>
+          </div>
+        `;
+      }
+    }
+  },
+
+  async rebuildLayout(preservePage = 1, token = this.loadToken) {
+    if (!this.pdfDoc || token !== this.loadToken) return;
+    const host = document.getElementById('pdf-viewer-host');
+    const pagesContainer = document.getElementById('pdf-pages-container');
+    if (!host || !pagesContainer) return;
+
+    this.cancelRenderTasks();
+    this.pageSlotMap.clear();
+    pagesContainer.innerHTML = '';
+
+    const isSwapped = this.rotation === 90 || this.rotation === 270;
+    const refW = isSwapped ? this.basePageHeight : this.basePageWidth;
+    const refH = isSwapped ? this.basePageWidth : this.basePageHeight;
+
+    const hostRect = host.getBoundingClientRect();
+    const scale = computePdfRenderScale({
+      viewportWidth: hostRect.width || host.clientWidth || window.innerWidth,
+      viewportHeight: hostRect.height || host.clientHeight || (window.innerHeight - 110),
+      pageWidth: refW,
+      pageHeight: refH,
+      pageMode: this.prefs.pageMode,
+      numPages: this.numPages,
+      zoomMode: this.prefs.zoomMode,
+      customScale: this.prefs.scale
+    });
+    this.effectiveScale = scale;
+    this.syncToolbarUI();
+
+    const estW = Math.round(refW * scale);
+    const estH = Math.round(refH * scale);
+    const spreads = buildPdfPageSpreads(this.numPages, this.prefs.pageMode, this.prefs.coverPage);
+
+    const frag = document.createDocumentFragment();
+    spreads.forEach((pagesInRow) => {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'pdf-spread-row';
+      rowEl.dataset.firstPage = String(pagesInRow[0]);
+      if (pagesInRow.length === 2) rowEl.classList.add('is-spread');
+
+      pagesInRow.forEach((pageNum) => {
+        const slot = document.createElement('div');
+        slot.className = 'pdf-page-slot';
+        slot.dataset.pageNumber = String(pageNum);
+        slot.style.width = `${estW}px`;
+        slot.style.height = `${estH}px`;
+        slot.style.setProperty('--scale-factor', String(scale));
+        slot.style.setProperty('--total-scale-factor', String(scale));
+
+        const badge = document.createElement('span');
+        badge.className = 'pdf-page-number-badge';
+        badge.textContent = String(pageNum);
+        slot.appendChild(badge);
+
+        rowEl.appendChild(slot);
+        this.pageSlotMap.set(pageNum, slot);
+      });
+
+      frag.appendChild(rowEl);
+    });
+    pagesContainer.appendChild(frag);
+
+    const targetPage = Math.min(this.numPages, Math.max(1, preservePage || 1));
+    this.scrollToPage(targetPage, false);
+
+    if (typeof IntersectionObserver !== 'undefined') {
+      const marginPx = (typeof state !== 'undefined' && state.isBatterySaving) ? 350 : 600;
+      this.observer = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          const p = parseInt(entry.target.dataset.pageNumber, 10);
+          if (Number.isFinite(p)) {
+            this.renderPage(p, token);
+          }
+        });
+      }, {
+        root: host,
+        rootMargin: `${marginPx}px 0px`
+      });
+
+      this.pageSlotMap.forEach((slot) => this.observer.observe(slot));
+    }
+
+    // 初回表示ページとその前後を即座に描画
+    const immediatePages = [targetPage, targetPage + 1, targetPage - 1, targetPage + 2]
+      .filter(p => p >= 1 && p <= this.numPages);
+    await Promise.all(immediatePages.map(p => this.renderPage(p, token)));
+  },
+
+  async renderPage(pageNum, token = this.loadToken) {
+    if (!this.pdfDoc || token !== this.loadToken) return;
+    if (this.renderedPages.has(pageNum) || this.renderTasks.has(pageNum)) return;
+
+    const slot = this.pageSlotMap.get(pageNum);
+    if (!slot) return;
+
+    const scale = this.effectiveScale || 1.0;
+    const rotation = this.rotation || 0;
+    this.renderedPages.add(pageNum);
+
+    try {
+      const pdfjsLib = await this.ensureLib();
+      const page = await this.pdfDoc.getPage(pageNum);
+      if (token !== this.loadToken || !slot.isConnected) return;
+
+      const viewport = page.getViewport({ scale, rotation });
+      const dpr = this.getEffectiveDpr();
+      const cssW = Math.floor(viewport.width);
+      const cssH = Math.floor(viewport.height);
+
+      slot.style.width = `${cssW}px`;
+      slot.style.height = `${cssH}px`;
+      slot.style.setProperty('--scale-factor', String(scale));
+      slot.style.setProperty('--total-scale-factor', String(scale));
+
+      const canvas = document.createElement('canvas');
+      canvas.className = 'pdf-page-canvas';
+      canvas.width = Math.max(1, Math.floor(viewport.width * dpr));
+      canvas.height = Math.max(1, Math.floor(viewport.height * dpr));
+      canvas.style.width = `${cssW}px`;
+      canvas.style.height = `${cssH}px`;
+
+      const ctx = canvas.getContext('2d', { alpha: false });
+      const renderTask = page.render({
+        canvasContext: ctx,
+        viewport,
+        transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : null
+      });
+      this.renderTasks.set(pageNum, renderTask);
+
+      await renderTask.promise;
+      this.renderTasks.delete(pageNum);
+
+      if (token !== this.loadToken || !slot.isConnected) {
+        canvas.width = 0;
+        canvas.height = 0;
+        return;
+      }
+
+      slot.querySelectorAll('canvas').forEach((cv) => {
+        cv.width = 0;
+        cv.height = 0;
+        cv.remove();
+      });
+      slot.querySelectorAll('.textLayer').forEach(el => el.remove());
+      slot.appendChild(canvas);
+
+      // 画面から遠く離れたページのCanvas/VRAMを自動解放してメモリ肥大化を防止
+      this.evictDistantPages(this.currentPage);
+
+      // テキスト選択レイヤーを重ねてコピー可能にする
+      if (pdfjsLib?.TextLayer) {
+        const textLayerDiv = document.createElement('div');
+        textLayerDiv.className = 'textLayer';
+        slot.appendChild(textLayerDiv);
+        try {
+          const textContent = await page.getTextContent();
+          if (token !== this.loadToken || !slot.isConnected) return;
+          const textLayer = new pdfjsLib.TextLayer({
+            textContentSource: textContent,
+            container: textLayerDiv,
+            viewport
+          });
+          this.textLayerTasks.set(pageNum, textLayer);
+          await textLayer.render();
+          this.textLayerTasks.delete(pageNum);
+        } catch (_) {
+          this.textLayerTasks.delete(pageNum);
+        }
+      }
+    } catch (err) {
+      this.renderTasks.delete(pageNum);
+      if (err?.name !== 'RenderingCancelledException') {
+        this.renderedPages.delete(pageNum);
+      }
+    }
+  }
+};
 
 function parseCsvRows(text, delimiter = ',') {
   const rows = [];
@@ -5353,7 +6057,8 @@ async function openPdfPreviewModal(fileUrl, fileName, fileId = null, courseId = 
   modalNav.beforeOpen('pdf-modal', targetKey);
 
   const modal = document.getElementById('pdf-modal');
-  let iframe = document.getElementById('pdf-iframe');
+  const toolbar = document.getElementById('pdf-viewer-toolbar');
+  const viewerHost = document.getElementById('pdf-viewer-host');
   const customPreview = document.getElementById('file-custom-preview');
   const title = document.getElementById('pdf-modal-title');
   const spinner = document.getElementById('pdf-loading-spinner');
@@ -5396,11 +6101,9 @@ async function openPdfPreviewModal(fileUrl, fileName, fileId = null, courseId = 
 
   // PDF以外のプレビュー可能形式（画像・CSV・テキスト/コード・動画・音声）
   if (category !== 'pdf' && customPreview && category !== 'unknown') {
-    if (iframe) {
-      try { iframe.contentWindow?.stop?.(); } catch (_) {}
-      iframe.src = 'about:blank';
-      iframe.style.display = 'none';
-    }
+    pdfViewer.destroy();
+    if (toolbar) toolbar.style.display = 'none';
+    if (viewerHost) viewerHost.style.display = 'none';
     customPreview.style.display = 'block';
     customPreview.innerHTML = '';
 
@@ -5472,42 +6175,24 @@ async function openPdfPreviewModal(fileUrl, fileName, fileId = null, courseId = 
     return;
   }
 
-  // PDFプレビュー表示
+  // PDFプレビュー表示（PDF.jsカスタムビューア: デフォルト2ページ表示・個人カスタム設定記憶・アクセス許可バナー非表示）
   if (customPreview) {
     customPreview.style.display = 'none';
     customPreview.innerHTML = '';
   }
 
-  // 閉じた際に DOM から完全除去されていた場合は再生成
-  const container = document.getElementById('pdf-iframe-container') || modal?.querySelector('.modal-container > div:last-child');
-  if (!iframe && container) {
-    iframe = document.createElement('iframe');
-    iframe.id = 'pdf-iframe';
-    iframe.className = 'pdf-viewer-frame';
-    iframe.style.cssText = 'flex: 1; border: none; width: 100%; height: 100%; position: relative; z-index: 1;';
-    container.appendChild(iframe);
-  }
-  if (iframe) {
-    iframe.style.display = 'block';
-  }
-
-  // タイムアウトによる安全なスピナー解除 (PDF表示遅延の防止)
-  pdfSpinnerTimer = setTimeout(hideSpinner, 3500);
-
-  // 高速な読み込み完了検知
-  if (iframe) {
-    iframe.onload = hideSpinner;
-    iframe.onerror = hideSpinner;
-    const targetViewerUrl = resolvedUrl.includes('#') ? resolvedUrl : `${resolvedUrl}#view=FitH&toolbar=1`;
-    iframe.src = targetViewerUrl;
-  }
   modal.classList.add('open');
   modalNav.syncBackButtons();
+
+  // タイムアウトによる安全なスピナー解除
+  pdfSpinnerTimer = setTimeout(hideSpinner, 8000);
+  pdfViewer.open(resolvedUrl, hideSpinner);
 }
 
 function closePdfModal(preserveNav = false) {
   const modal = document.getElementById('pdf-modal');
-  const iframe = document.getElementById('pdf-iframe');
+  const toolbar = document.getElementById('pdf-viewer-toolbar');
+  const viewerHost = document.getElementById('pdf-viewer-host');
   const customPreview = document.getElementById('file-custom-preview');
   const spinner = document.getElementById('pdf-loading-spinner');
   if (pdfSpinnerTimer) {
@@ -5523,16 +6208,11 @@ function closePdfModal(preserveNav = false) {
     customPreview.style.display = 'none';
     customPreview.innerHTML = '';
   }
-  // 完全メモリ解放: iframe のイベント解除・停止・about:blank 代入・DOM 除去
-  if (iframe) {
-    iframe.onload = null;
-    iframe.onerror = null;
-    try {
-      iframe.contentWindow?.stop?.();
-    } catch (_) {}
-    iframe.src = 'about:blank';
-    iframe.remove();
-  }
+  // 完全メモリ解放: PDF.js ドキュメント・描画タスク・キャンバスを破棄
+  pdfViewer.destroy();
+  if (toolbar) toolbar.style.display = 'none';
+  if (viewerHost) viewerHost.style.display = 'none';
+
   modal.classList.remove('open');
   currentPdfFile = null;
   if (!preserveNav) {
@@ -6712,6 +7392,10 @@ function setupCommandPalette() {
 
   function closePalette() {
     overlay.classList.remove('open');
+    // 閉鎖時に検索インデックスと結果DOMを即時解放してRAMを節約
+    paletteIndex = [];
+    currentItems = [];
+    if (resultsList) resultsList.innerHTML = '';
   }
 
   document.getElementById('global-search-trigger').addEventListener('click', openPalette);

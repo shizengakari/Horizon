@@ -2,12 +2,14 @@
  * Horizon - Service Worker (PWA)
  */
 
-const CACHE_NAME = 'horizon-v1.4.18';
+const CACHE_NAME = 'horizon-v1.4.19';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
   '/css/style.css',
   '/js/app.js',
+  '/vendor/pdfjs/pdf.min.mjs',
+  '/vendor/pdfjs/pdf.worker.min.mjs',
   '/manifest.json',
   '/icons/icon.png'
 ];

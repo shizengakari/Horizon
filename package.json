@@ -1,6 +1,6 @@
 {
   "name": "horizon",
-  "version": "1.4.18",
+  "version": "1.4.19",
   "description": "Horizon - Personal LMS Desktop Client",
   "main": "src/main.js",
   "repository": {
@@ -81,6 +81,7 @@
   "devDependencies": {
     "electron": "^44.4.5",
     "electron-builder": "^26.15.3",
-    "electron-packager": "^17.1.2"
+    "electron-packager": "^17.1.2",
+    "pdfjs-dist": "^6.5.438"
   }
 }

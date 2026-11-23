@@ -5,6 +5,7 @@ use serde_json::{Value, json};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::Semaphore;
@@ -12,6 +13,7 @@ use tokio::sync::Semaphore;
 const CACHE_TTL_MS: u64 = 15 * 60 * 1000;
 const COURSES_CACHE_TTL_MS: u64 = 60 * 60 * 1000;
 const MATERIALS_CACHE_TTL_MS: u64 = 30 * 60 * 1000;
+const MAX_CACHE_MAP_ENTRIES: usize = 60;
 
 pub fn now_ms() -> u64 {
     SystemTime::now()
@@ -98,14 +100,30 @@ pub struct CanvasService {
     pub semaphore: Arc<Semaphore>,
     pub cache: Arc<Mutex<MemoryCache>>,
     pub cache_file_path: PathBuf,
+    pub save_generation: Arc<AtomicU64>,
+}
+
+fn prune_timed_map(map: &mut HashMap<String, TimedEntry>, max_age_ms: u64, max_entries: usize) {
+    let now = now_ms();
+    map.retain(|_, v| now.saturating_sub(v.time) <= max_age_ms);
+    if map.len() > max_entries {
+        let mut by_age: Vec<(String, u64)> = map.iter().map(|(k, v)| (k.clone(), v.time)).collect();
+        by_age.sort_by_key(|(_, t)| *t);
+        let remove_count = map.len() - max_entries;
+        for (k, _) in by_age.into_iter().take(remove_count) {
+            map.remove(&k);
+        }
+    }
 }
 
 impl CanvasService {
     pub fn new() -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(25))
-            .pool_max_idle_per_host(8)
-            .user_agent("Horizon-Rust/1.4.10")
+            .pool_max_idle_per_host(4)
+            .pool_idle_timeout(Duration::from_secs(30))
+            .tcp_keepalive(Duration::from_secs(60))
+            .user_agent("Horizon-Rust/1.4.19")
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
 
@@ -118,9 +136,34 @@ impl CanvasService {
             semaphore: Arc::new(Semaphore::new(4)),
             cache: Arc::new(Mutex::new(MemoryCache::default())),
             cache_file_path,
+            save_generation: Arc::new(AtomicU64::new(0)),
         };
         svc.load_disk_cache();
         svc
+    }
+
+    /// 期限切れ・上限超過のインメモリキャッシュを整理してRAM肥大化を防止
+    pub fn prune_memory_cache(&self) {
+        if let Ok(mut guard) = self.cache.lock() {
+            prune_timed_map(&mut guard.assignments, CACHE_TTL_MS * 2, MAX_CACHE_MAP_ENTRIES);
+            prune_timed_map(&mut guard.modules, CACHE_TTL_MS * 2, MAX_CACHE_MAP_ENTRIES);
+            prune_timed_map(&mut guard.files, CACHE_TTL_MS * 2, MAX_CACHE_MAP_ENTRIES);
+            prune_timed_map(
+                &mut guard.grouped_materials,
+                MATERIALS_CACHE_TTL_MS * 2,
+                MAX_CACHE_MAP_ENTRIES,
+            );
+            prune_timed_map(
+                &mut guard.resolved_urls,
+                30 * 60 * 1000,
+                MAX_CACHE_MAP_ENTRIES * 2,
+            );
+            prune_timed_map(
+                &mut guard.submitted_overrides,
+                30 * 60 * 1000,
+                MAX_CACHE_MAP_ENTRIES,
+            );
+        }
     }
 
     pub fn load_disk_cache(&self) {
@@ -196,27 +239,45 @@ impl CanvasService {
         }
     }
 
+    /// ディスクキャッシュへの保存（1200ms デバウンス＋一時ファイル経由の原子的書き込み）
     pub fn save_disk_cache(&self) {
-        let payload = {
-            let Ok(guard) = self.cache.lock() else {
-                return;
-            };
-            json!({
-              "schemaVersion": 2,
-              "appVersion": crate::server::APP_VERSION,
-              "profile": guard.profile,
-              "courses": guard.courses,
-              "coursesTime": guard.courses_time,
-              "allAssignments": guard.all_assignments,
-              "allAssignmentsTime": guard.all_assignments_time,
-              "assignments": guard.assignments,
-              "groupedMaterials": guard.grouped_materials,
-            })
-        };
+        let generation = self.save_generation.fetch_add(1, Ordering::SeqCst) + 1;
+        let gen_ref = self.save_generation.clone();
+        let cache_ref = self.cache.clone();
         let path = self.cache_file_path.clone();
+
         tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(1200)).await;
+            if gen_ref.load(Ordering::SeqCst) != generation {
+                return;
+            }
+            let payload = {
+                let Ok(mut guard) = cache_ref.lock() else {
+                    return;
+                };
+                prune_timed_map(&mut guard.assignments, CACHE_TTL_MS * 2, MAX_CACHE_MAP_ENTRIES);
+                prune_timed_map(
+                    &mut guard.grouped_materials,
+                    MATERIALS_CACHE_TTL_MS * 2,
+                    MAX_CACHE_MAP_ENTRIES,
+                );
+                json!({
+                  "schemaVersion": 2,
+                  "appVersion": crate::server::APP_VERSION,
+                  "profile": guard.profile,
+                  "courses": guard.courses,
+                  "coursesTime": guard.courses_time,
+                  "allAssignments": guard.all_assignments,
+                  "allAssignmentsTime": guard.all_assignments_time,
+                  "assignments": guard.assignments,
+                  "groupedMaterials": guard.grouped_materials,
+                })
+            };
             if let Ok(serialized) = serde_json::to_string(&payload) {
-                let _ = tokio::fs::write(path, serialized).await;
+                let tmp_path = path.with_extension("json.tmp");
+                if tokio::fs::write(&tmp_path, serialized).await.is_ok() {
+                    let _ = tokio::fs::rename(&tmp_path, &path).await;
+                }
             }
         });
     }

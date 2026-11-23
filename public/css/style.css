@@ -72,9 +72,9 @@
   --course-c6: #c58af9;
 
   /* フォントサイズ定義 */
-  --font-sans: 'Roboto', 'Google Sans', 'Noto Sans JP', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-heading: 'Google Sans', 'Plus Jakarta Sans', 'Noto Sans JP', var(--font-sans);
-  --font-mono: 'Roboto Mono', 'JetBrains Mono', Consolas, monospace;
+  --font-sans: 'Segoe UI Variable Text', 'Segoe UI', 'Yu Gothic UI', 'Meiryo', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-heading: 'Segoe UI Variable Display', 'Segoe UI', 'Yu Gothic UI', 'Meiryo', var(--font-sans);
+  --font-mono: 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
 
   /* ボックスシャドウ定義 */
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.25);
@@ -94,9 +94,9 @@
   --radius-full: 9999px;
 
   /* トランジションおよびアニメーション定義 */
-  --transition-fast: 150ms cubic-bezier(0.2, 0, 0, 1);
-  --transition-normal: 220ms cubic-bezier(0.2, 0, 0, 1);
-  --transition-spring: 320ms cubic-bezier(0.34, 1.3, 0.64, 1);
+  --transition-fast: 110ms ease-out;
+  --transition-normal: 160ms ease-out;
+  --transition-spring: 180ms ease-out;
 }
 
 /* ==========================================================================
@@ -232,6 +232,14 @@ body.app-hidden {
   animation-play-state: paused !important;
 }
 
+/* ウィンドウ非フォーカス時の装飾ループアニメーション停止（別アプリ作業中のGPU省電力） */
+body.app-unfocused .header-update-banner,
+body.app-unfocused .download-manager-btn.is-active,
+body.app-unfocused .download-manager-btn.is-active .dl-icon,
+body.app-unfocused .download-count-badge.pulse {
+  animation-play-state: paused !important;
+}
+
 /* 電源・省電力モード切替丸型アイコンボタン (省電力モード時のみ表示) */
 .power-mode-btn {
   position: relative;
@@ -261,10 +269,9 @@ body.app-hidden {
 }
 
 .power-mode-btn:hover {
-  background: rgba(16, 185, 129, 0.22);
-  border-color: rgba(16, 185, 129, 0.55);
+  background: rgba(16, 185, 129, 0.18);
+  border-color: rgba(16, 185, 129, 0.45);
   color: #059669;
-  transform: translateY(-1px);
 }
 
 /* 設定画面 電源ステータスピル */
@@ -733,9 +740,7 @@ a:hover {
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--border-subtle);
-  background: var(--bg-glass);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  background: var(--bg-surface);
   z-index: 10;
 }
 
@@ -998,18 +1003,16 @@ a:hover {
   font-size: 11.5px;
   font-weight: 700;
   cursor: pointer;
-  transition: all var(--transition-fast);
-  box-shadow: 0 2px 6px var(--accent-primary-glow);
+  transition: background-color var(--transition-fast), opacity var(--transition-fast);
   white-space: nowrap;
 }
 
 .btn-update-restart:hover {
   background: var(--accent-gradient-hover);
-  transform: translateY(-1px);
 }
 
 .btn-update-restart:active {
-  transform: translateY(0);
+  opacity: 0.9;
 }
 
 /* ヘッダー設定ボタン */
@@ -1149,27 +1152,9 @@ a:hover {
   align-items: center;
   gap: 14px;
   cursor: pointer;
-  transition: background-color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast);
-  box-shadow: var(--shadow-sm);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
   position: relative;
   overflow: hidden;
-  animation: kpiEntrance 0.38s cubic-bezier(0.16, 1, 0.3, 1) backwards;
-}
-
-.stats-overview-grid .kpi-card:nth-child(1) { animation-delay: 0.04s; }
-.stats-overview-grid .kpi-card:nth-child(2) { animation-delay: 0.08s; }
-.stats-overview-grid .kpi-card:nth-child(3) { animation-delay: 0.12s; }
-.stats-overview-grid .kpi-card:nth-child(4) { animation-delay: 0.16s; }
-
-@keyframes kpiEntrance {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.98);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
 }
 
 .kpi-card:hover {
@@ -1666,24 +1651,11 @@ a:hover {
   justify-content: space-between;
   gap: 16px;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
   position: relative;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-  animation: cardFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) backwards;
   contain: content;
   content-visibility: auto;
   contain-intrinsic-size: 0 74px;
-}
-
-@keyframes cardFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 .assignment-card:hover {
@@ -1854,15 +1826,14 @@ a:hover {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
   white-space: nowrap;
   line-height: 1.2;
 }
 
 [data-theme="light"] .btn-submit-action {
-  background: rgba(26, 115, 232, 0.1);
-  border-color: rgba(26, 115, 232, 0.35);
+  background: rgba(26, 115, 232, 0.08);
+  border-color: rgba(26, 115, 232, 0.3);
   color: #1a73e8;
 }
 
@@ -1871,37 +1842,27 @@ a:hover {
   height: 14px;
   color: #8ab4f8;
   flex-shrink: 0;
-  transition: transform var(--transition-fast);
 }
 
 [data-theme="light"] .btn-submit-action .btn-icon {
   color: #1a73e8;
 }
 
-.assignment-card:hover .btn-submit-action,
 .btn-submit-action:hover {
-  background: rgba(138, 180, 248, 0.26);
-  border-color: #8ab4f8;
+  background: rgba(138, 180, 248, 0.2);
+  border-color: rgba(138, 180, 248, 0.65);
   color: #d2e3fc;
-  box-shadow: 0 2px 8px rgba(138, 180, 248, 0.25);
 }
 
-[data-theme="light"] .assignment-card:hover .btn-submit-action,
 [data-theme="light"] .btn-submit-action:hover {
-  background: rgba(26, 115, 232, 0.18);
-  border-color: #1a73e8;
+  background: rgba(26, 115, 232, 0.14);
+  border-color: rgba(26, 115, 232, 0.55);
   color: #1557b0;
-  box-shadow: 0 2px 8px rgba(26, 115, 232, 0.2);
-}
-
-.assignment-card:hover .btn-submit-action .btn-icon,
-.btn-submit-action:hover .btn-icon {
-  transform: translateY(-1px);
 }
 
 .btn-view-submission {
-  background: rgba(129, 201, 149, 0.12);
-  border: 1px solid rgba(129, 201, 149, 0.3);
+  background: rgba(129, 201, 149, 0.1);
+  border: 1px solid rgba(129, 201, 149, 0.28);
   color: #81c995;
   padding: 7px 16px;
   border-radius: var(--radius-full);
@@ -1914,8 +1875,7 @@ a:hover {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
   white-space: nowrap;
   line-height: 1.2;
 }
@@ -1925,7 +1885,6 @@ a:hover {
   height: 14px;
   color: #81c995;
   flex-shrink: 0;
-  transition: transform var(--transition-fast);
 }
 
 [data-theme="light"] .btn-view-submission {
@@ -1938,16 +1897,16 @@ a:hover {
   color: #047857;
 }
 
-.assignment-card:hover .btn-view-submission,
 .btn-view-submission:hover {
-  background: rgba(129, 201, 149, 0.25);
-  border-color: #81c995;
-  color: #ffffff;
+  background: rgba(129, 201, 149, 0.2);
+  border-color: rgba(129, 201, 149, 0.6);
+  color: #d1fae5;
 }
 
-.assignment-card:hover .btn-view-submission .btn-icon,
-.btn-view-submission:hover .btn-icon {
-  transform: translateY(-1px);
+[data-theme="light"] .btn-view-submission:hover {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+  color: #065f46;
 }
 
 /* ステータスバッジ */
@@ -2461,7 +2420,7 @@ a:hover {
   font-size: 12.5px;
   font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
   white-space: nowrap;
   display: inline-flex;
   align-items: center;
@@ -2469,18 +2428,12 @@ a:hover {
   gap: 6px;
   text-decoration: none;
   line-height: 1.2;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .action-chip-btn svg {
   width: 14px;
   height: 14px;
   flex-shrink: 0;
-  transition: transform var(--transition-fast);
-}
-
-.action-chip-btn:hover svg {
-  transform: translateY(-1px);
 }
 
 /* アクションボタン */
@@ -2491,106 +2444,99 @@ a:hover {
 }
 .action-chip-btn:hover {
   background: var(--bg-card-hover);
-  border-color: var(--accent-primary);
+  border-color: var(--border-strong, var(--accent-primary));
   color: var(--text-main);
 }
 
 /* 1. 提出ボタン */
 .action-chip-btn.action-submit {
-  background: rgba(138, 180, 248, 0.16);
-  border: 1px solid rgba(138, 180, 248, 0.42);
+  background: rgba(138, 180, 248, 0.14);
+  border: 1px solid rgba(138, 180, 248, 0.36);
   color: #8ab4f8;
 }
 .action-chip-btn.action-submit svg { color: #8ab4f8; }
 .action-chip-btn.action-submit:hover {
-  background: rgba(138, 180, 248, 0.3);
-  border-color: #8ab4f8;
-  color: #ffffff;
-  box-shadow: 0 2px 10px rgba(138, 180, 248, 0.28);
+  background: rgba(138, 180, 248, 0.24);
+  border-color: rgba(138, 180, 248, 0.65);
+  color: #d2e3fc;
 }
 
 /* 1-B. 提出済みボタン */
 .action-chip-btn.action-submitted {
-  background: rgba(129, 201, 149, 0.16);
-  border: 1px solid rgba(129, 201, 149, 0.42);
+  background: rgba(129, 201, 149, 0.14);
+  border: 1px solid rgba(129, 201, 149, 0.36);
   color: #81c995;
 }
 .action-chip-btn.action-submitted svg { color: #81c995; }
 .action-chip-btn.action-submitted:hover {
-  background: rgba(129, 201, 149, 0.3);
-  border-color: #81c995;
-  color: #ffffff;
-  box-shadow: 0 2px 10px rgba(129, 201, 149, 0.28);
+  background: rgba(129, 201, 149, 0.24);
+  border-color: rgba(129, 201, 149, 0.65);
+  color: #d1fae5;
 }
 
 /* 2. 回答ボタン */
 .action-chip-btn.action-quiz {
-  background: rgba(197, 138, 249, 0.16);
-  border: 1px solid rgba(197, 138, 249, 0.42);
+  background: rgba(197, 138, 249, 0.14);
+  border: 1px solid rgba(197, 138, 249, 0.36);
   color: #c58af9;
 }
 .action-chip-btn.action-quiz svg { color: #c58af9; }
 .action-chip-btn.action-quiz:hover {
-  background: rgba(197, 138, 249, 0.3);
-  border-color: #c58af9;
-  color: #ffffff;
-  box-shadow: 0 2px 10px rgba(197, 138, 249, 0.28);
+  background: rgba(197, 138, 249, 0.24);
+  border-color: rgba(197, 138, 249, 0.65);
+  color: #f3e8ff;
 }
 
 /* 3. 閲覧ボタン */
 .action-chip-btn.action-view {
-  background: rgba(128, 203, 196, 0.16);
-  border: 1px solid rgba(128, 203, 196, 0.42);
+  background: rgba(128, 203, 196, 0.14);
+  border: 1px solid rgba(128, 203, 196, 0.36);
   color: #80cbc4;
 }
 .action-chip-btn.action-view svg { color: #80cbc4; }
 .action-chip-btn.action-view:hover {
-  background: rgba(128, 203, 196, 0.3);
-  border-color: #80cbc4;
-  color: #ffffff;
-  box-shadow: 0 2px 10px rgba(128, 203, 196, 0.28);
+  background: rgba(128, 203, 196, 0.24);
+  border-color: rgba(128, 203, 196, 0.65);
+  color: #ccfbf1;
 }
 
 /* 4. 保存・ダウンロードボタン */
 .action-chip-btn.action-download {
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   color: #e2e8f0;
 }
 .action-chip-btn.action-download svg { color: #cbd5e1; }
 .action-chip-btn.action-download:hover {
-  background: rgba(255, 255, 255, 0.16);
-  border-color: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.13);
+  border-color: rgba(255, 255, 255, 0.3);
   color: #ffffff;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
 }
 
 /* 5. 再生ボタン */
 .action-chip-btn.action-play {
-  background: rgba(242, 139, 130, 0.16);
-  border: 1px solid rgba(242, 139, 130, 0.42);
+  background: rgba(242, 139, 130, 0.14);
+  border: 1px solid rgba(242, 139, 130, 0.36);
   color: #f28b82;
 }
 .action-chip-btn.action-play svg { color: #f28b82; }
 .action-chip-btn.action-play:hover {
-  background: rgba(242, 139, 130, 0.3);
-  border-color: #f28b82;
-  color: #ffffff;
-  box-shadow: 0 2px 10px rgba(242, 139, 130, 0.28);
+  background: rgba(242, 139, 130, 0.24);
+  border-color: rgba(242, 139, 130, 0.65);
+  color: #fee2e2;
 }
 
 /* 6. 外部リンクボタン */
 .action-chip-btn.action-external {
-  background: rgba(253, 214, 99, 0.16);
-  border: 1px solid rgba(253, 214, 99, 0.42);
+  background: rgba(253, 214, 99, 0.14);
+  border: 1px solid rgba(253, 214, 99, 0.36);
   color: #fdd663;
 }
 .action-chip-btn.action-external svg { color: #fdd663; }
 .action-chip-btn.action-external:hover {
-  background: rgba(253, 214, 99, 0.3);
-  border-color: #fdd663;
-  color: #ffffff;
-  box-shadow: 0 2px 10px rgba(253, 214, 99, 0.28);
+  background: rgba(253, 214, 99, 0.24);
+  border-color: rgba(253, 214, 99, 0.65);
+  color: #fef3c7;
 }
 
 /* 7. 手動完了ボタン */
@@ -3563,7 +3509,7 @@ a:hover {
   border: 1px solid var(--border-medium);
   color: #cbd5e1;
   cursor: pointer;
-  transition: all var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 [data-theme="light"] .explorer-mini-btn {
@@ -3572,10 +3518,9 @@ a:hover {
 }
 
 .explorer-mini-btn:hover {
-  background: rgba(56, 189, 248, 0.2);
-  border-color: #38bdf8;
+  background: rgba(56, 189, 248, 0.18);
+  border-color: rgba(56, 189, 248, 0.65);
   color: #38bdf8;
-  transform: translateY(-1px);
 }
 
 .explorer-mini-btn.action-save:hover {
@@ -3801,9 +3746,292 @@ a:hover {
   height: 100%;
   border: none;
   background: #1e1e1e;
-  transform: translateZ(0);
-  will-change: transform;
   contain: strict;
+}
+
+/* ==========================================================================
+   CUSTOM PDF.JS VIEWER (デフォルト2ページ表示・設定記憶・ツールバー)
+   ========================================================================== */
+.pdf-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 7px 16px;
+  background: var(--bg-surface, #151926);
+  border-bottom: 1px solid var(--border-subtle);
+  flex-shrink: 0;
+  user-select: none;
+  z-index: 3;
+}
+
+.pdf-toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.pdf-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--border-subtle);
+  margin: 0 2px;
+}
+
+.pdf-tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0 7px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary, #cbd5e1);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.pdf-tool-btn:hover:not(:disabled) {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.08));
+  color: var(--text-main, #f8fafc);
+}
+
+.pdf-tool-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pdf-tool-chip {
+  padding: 0 10px;
+  border-color: var(--border-subtle);
+  background: var(--bg-input, rgba(255, 255, 255, 0.04));
+}
+
+.pdf-tool-chip.active {
+  background: rgba(99, 102, 241, 0.2);
+  border-color: rgba(129, 140, 248, 0.5);
+  color: #a5b4fc;
+}
+
+[data-theme="light"] .pdf-tool-chip.active {
+  background: rgba(79, 70, 229, 0.12);
+  border-color: rgba(79, 70, 229, 0.4);
+  color: #4338ca;
+}
+
+.pdf-segmented {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--bg-input, rgba(255, 255, 255, 0.05));
+  border: 1px solid var(--border-subtle);
+  gap: 2px;
+}
+
+.pdf-seg-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 9px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted, #94a3b8);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.pdf-seg-btn:hover {
+  color: var(--text-main, #f8fafc);
+}
+
+.pdf-seg-btn.active {
+  background: var(--accent-primary, #6366f1);
+  color: #ffffff;
+}
+
+.pdf-page-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.pdf-page-input {
+  width: 44px;
+  height: 26px;
+  padding: 0 6px;
+  text-align: center;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-input, rgba(255, 255, 255, 0.06));
+  color: var(--text-main);
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-mono, monospace);
+}
+
+.pdf-page-input:focus {
+  outline: none;
+  border-color: var(--accent-primary, #6366f1);
+}
+
+.pdf-zoom-label {
+  min-width: 44px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-secondary, #cbd5e1);
+}
+
+.pdf-viewer-host {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: #141722;
+  outline: none;
+  position: relative;
+  z-index: 1;
+}
+
+[data-theme="light"] .pdf-viewer-host {
+  background: #e5e7eb;
+}
+
+.pdf-pages-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  padding: 20px 24px 36px;
+  min-width: min-content;
+}
+
+.pdf-spread-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 16px;
+}
+
+.pdf-page-slot {
+  position: relative;
+  background: #ffffff;
+  border-radius: 3px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.38);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+[data-theme="light"] .pdf-page-slot {
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.16);
+}
+
+.pdf-page-canvas {
+  display: block;
+  position: relative;
+  z-index: 1;
+}
+
+.pdf-page-number-badge {
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.55);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: var(--font-mono, monospace);
+  pointer-events: none;
+  z-index: 3;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.pdf-page-slot:hover .pdf-page-number-badge {
+  opacity: 1;
+}
+
+.pdf-viewer-error {
+  margin: 48px auto;
+  padding: 24px 28px;
+  max-width: 460px;
+  text-align: center;
+  border-radius: 12px;
+  background: var(--bg-surface, #1e2436);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-main);
+}
+
+.pdf-viewer-error-detail {
+  margin: 8px 0 12px;
+  font-size: 12px;
+  color: var(--status-urgent, #f87171);
+  word-break: break-word;
+}
+
+/* PDF.js v6 TextLayer (テキスト選択・コピー用) */
+.pdf-page-slot .textLayer {
+  color-scheme: only light;
+  position: absolute;
+  text-align: initial;
+  inset: 0;
+  overflow: clip;
+  opacity: 1;
+  line-height: 1;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-size-adjust: none;
+  forced-color-adjust: none;
+  transform-origin: 0 0;
+  z-index: 2;
+  --min-font-size: 1;
+  --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+  --min-font-size-inv: calc(1 / var(--min-font-size));
+}
+
+.pdf-page-slot .textLayer :is(span, br) {
+  color: transparent;
+  position: absolute;
+  white-space: pre;
+  cursor: text;
+  transform-origin: 0% 0%;
+  user-select: text;
+}
+
+.pdf-page-slot .textLayer > :not(.markedContent),
+.pdf-page-slot .textLayer .markedContent span:not(.markedContent) {
+  z-index: 1;
+  --font-height: 0;
+  font-size: calc(var(--text-scale-factor) * var(--font-height));
+  --scale-x: 1;
+  --rotate: 0deg;
+  transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+}
+
+.pdf-page-slot .textLayer .markedContent {
+  display: contents;
+}
+
+.pdf-page-slot .textLayer ::selection {
+  background: rgba(59, 130, 246, 0.32);
 }
 
 /* ページ内容モーダル */
@@ -4323,9 +4551,7 @@ input:checked + .slider:before {
 .command-palette-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.72);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.78);
   z-index: 200;
   display: none;
   align-items: flex-start;
@@ -4507,8 +4733,6 @@ input:checked + .slider:before {
   overflow-y: auto;
   z-index: 1000;
   background: var(--bg-modal);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
   border: 1px solid var(--border-medium);
   border-radius: var(--radius-lg);
   box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.05);
@@ -5114,25 +5338,16 @@ input:checked + .slider:before {
   cursor: pointer;
   flex-shrink: 0;
   max-width: 220px;
-  transition: background var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .modal-back-btn:hover {
-  background: rgba(138, 180, 248, 0.22);
-  border-color: var(--accent-primary);
-}
-
-.modal-back-btn:active {
-  transform: scale(0.97);
+  background: rgba(138, 180, 248, 0.2);
+  border-color: rgba(138, 180, 248, 0.65);
 }
 
 .modal-back-btn svg {
   flex-shrink: 0;
-  transition: transform var(--transition-fast);
-}
-
-.modal-back-btn:hover svg {
-  transform: translateX(-2px);
 }
 
 .modal-back-label {
@@ -5293,7 +5508,7 @@ input:checked + .slider:before {
 }
 
 .action-chip-btn.action-locked,
-.assignment-card:hover .btn-submit-action.action-locked {
+.btn-submit-action.action-locked {
   background: rgba(245, 158, 11, 0.1);
   border: 1px solid rgba(245, 158, 11, 0.28);
   color: #fbbf24;
@@ -5311,13 +5526,12 @@ input:checked + .slider:before {
   box-shadow: none;
 }
 .action-chip-btn.action-locked:hover svg,
-.btn-submit-action.action-locked:hover .btn-icon,
-.assignment-card:hover .btn-submit-action.action-locked .btn-icon {
+.btn-submit-action.action-locked:hover .btn-icon {
   color: #fde68a;
 }
 
 [data-theme="light"] .action-chip-btn.action-locked,
-[data-theme="light"] .assignment-card:hover .btn-submit-action.action-locked {
+[data-theme="light"] .btn-submit-action.action-locked {
   background: #fef3c7;
   border-color: #fcd34d;
   color: #b45309;
@@ -5335,8 +5549,7 @@ input:checked + .slider:before {
   box-shadow: none;
 }
 [data-theme="light"] .action-chip-btn.action-locked:hover svg,
-[data-theme="light"] .btn-submit-action.action-locked:hover .btn-icon,
-[data-theme="light"] .assignment-card:hover .btn-submit-action.action-locked .btn-icon {
+[data-theme="light"] .btn-submit-action.action-locked:hover .btn-icon {
   color: #92400e;
 }
 

@@ -5423,8 +5423,8 @@ const pdfViewer = {
     const pageInput = document.getElementById('pdf-page-input');
     const singleBtn = document.getElementById('pdf-mode-single-btn');
     const twoBtn = document.getElementById('pdf-mode-two-btn');
-    const coverBtn = document.getElementById('pdf-cover-toggle-btn');
     const zoomOutBtn = document.getElementById('pdf-zoom-out-btn');
+    const zoomLabelBtn = document.getElementById('pdf-zoom-label');
     const zoomInBtn = document.getElementById('pdf-zoom-in-btn');
     const fitPageBtn = document.getElementById('pdf-fit-page-btn');
     const fitWidthBtn = document.getElementById('pdf-fit-width-btn');
@@ -5460,13 +5460,9 @@ const pdfViewer = {
     if (twoBtn) {
       twoBtn.addEventListener('click', () => this.updatePrefs({ pageMode: 'two-page' }));
     }
-    if (coverBtn) {
-      coverBtn.addEventListener('click', () => {
-        this.updatePrefs({ coverPage: !this.prefs.coverPage });
-      });
-    }
 
     if (zoomOutBtn) zoomOutBtn.addEventListener('click', () => this.stepZoom(-0.15));
+    if (zoomLabelBtn) zoomLabelBtn.addEventListener('click', () => this.updatePrefs({ zoomMode: 'custom', scale: 1.0 }));
     if (zoomInBtn) zoomInBtn.addEventListener('click', () => this.stepZoom(0.15));
     if (fitPageBtn) fitPageBtn.addEventListener('click', () => this.updatePrefs({ zoomMode: 'fit-page' }));
     if (fitWidthBtn) fitWidthBtn.addEventListener('click', () => this.updatePrefs({ zoomMode: 'fit-width' }));
@@ -5532,6 +5528,10 @@ const pdfViewer = {
       } else if ((e.ctrlKey || e.metaKey) && e.key === '0') {
         e.preventDefault();
         this.updatePrefs({ zoomMode: 'fit-page' });
+      } else if (!e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'r' || e.key === 'R')) {
+        e.preventDefault();
+        this.rotation = (this.rotation + 90) % 360;
+        this.rebuildLayout(this.currentPage);
       }
     });
   },
@@ -5539,7 +5539,6 @@ const pdfViewer = {
   syncToolbarUI() {
     const singleBtn = document.getElementById('pdf-mode-single-btn');
     const twoBtn = document.getElementById('pdf-mode-two-btn');
-    const coverBtn = document.getElementById('pdf-cover-toggle-btn');
     const fitPageBtn = document.getElementById('pdf-fit-page-btn');
     const fitWidthBtn = document.getElementById('pdf-fit-width-btn');
     const zoomLabel = document.getElementById('pdf-zoom-label');
@@ -5550,12 +5549,6 @@ const pdfViewer = {
 
     if (singleBtn) singleBtn.classList.toggle('active', this.prefs.pageMode === 'single');
     if (twoBtn) twoBtn.classList.toggle('active', this.prefs.pageMode === 'two-page');
-    if (coverBtn) {
-      const isTwo = this.prefs.pageMode === 'two-page';
-      coverBtn.style.display = isTwo ? '' : 'none';
-      coverBtn.classList.toggle('active', isTwo && this.prefs.coverPage);
-      coverBtn.setAttribute('aria-pressed', String(isTwo && this.prefs.coverPage));
-    }
     if (fitPageBtn) fitPageBtn.classList.toggle('active', this.prefs.zoomMode === 'fit-page');
     if (fitWidthBtn) fitWidthBtn.classList.toggle('active', this.prefs.zoomMode === 'fit-width');
     if (zoomLabel) zoomLabel.textContent = `${Math.round((this.effectiveScale || 1) * 100)}%`;
@@ -5770,7 +5763,7 @@ const pdfViewer = {
       if (this.numPages > 0) {
         const firstPage = await pdfDoc.getPage(1);
         if (token !== this.loadToken) return;
-        const baseVp = firstPage.getViewport({ scale: 1, rotation: 0 });
+        const baseVp = firstPage.getViewport({ scale: 1 });
         this.basePageWidth = baseVp.width || 595;
         this.basePageHeight = baseVp.height || 842;
       }
@@ -5899,7 +5892,8 @@ const pdfViewer = {
       const page = await this.pdfDoc.getPage(pageNum);
       if (token !== this.loadToken || !slot.isConnected) return;
 
-      const viewport = page.getViewport({ scale, rotation });
+      const effectiveRotation = ((page.rotate || 0) + (rotation || 0)) % 360;
+      const viewport = page.getViewport({ scale, rotation: effectiveRotation });
       const dpr = this.getEffectiveDpr();
       const cssW = Math.floor(viewport.width);
       const cssH = Math.floor(viewport.height);

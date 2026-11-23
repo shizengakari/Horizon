@@ -18,7 +18,10 @@
   <link rel="icon" type="image/png" href="icons/icon.png">
   <link rel="apple-touch-icon" href="icons/icon.png">
   <link rel="manifest" href="manifest.json">
-  <link rel="stylesheet" href="css/style.css?v=1.4.19">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;700&family=Plus+Jakarta+Sans:wght@500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css?v=1.4.20">
 </head>
 <body>
   <canvas id="confetti-canvas" width="0" height="0"></canvas>
@@ -660,53 +663,54 @@
       </div>
       <div class="pdf-toolbar" id="pdf-viewer-toolbar" style="display: none;">
         <div class="pdf-toolbar-group">
-          <button type="button" class="pdf-tool-btn" id="pdf-prev-page-btn" aria-label="前のページ">
-            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 19l-7-7 7-7"/></svg>
+          <button type="button" class="pdf-tool-btn" id="pdf-prev-page-btn" aria-label="前のページ" title="前のページ (←)">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M15 19l-7-7 7-7"/></svg>
           </button>
           <div class="pdf-page-indicator">
             <input type="text" inputmode="numeric" id="pdf-page-input" class="pdf-page-input" value="1" aria-label="現在のページ">
             <span class="pdf-page-sep">/</span>
             <span id="pdf-page-total" class="pdf-page-total">-</span>
           </div>
-          <button type="button" class="pdf-tool-btn" id="pdf-next-page-btn" aria-label="次のページ">
-            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 5l7 7-7 7"/></svg>
+          <button type="button" class="pdf-tool-btn" id="pdf-next-page-btn" aria-label="次のページ" title="次のページ (→)">
+            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M9 5l7 7-7 7"/></svg>
           </button>
         </div>
 
         <div class="pdf-toolbar-group">
           <div class="pdf-segmented" role="group" aria-label="ページ表示レイアウト">
-            <button type="button" class="pdf-seg-btn" id="pdf-mode-single-btn" data-page-mode="single">
+            <button type="button" class="pdf-seg-btn" id="pdf-mode-single-btn" data-page-mode="single" title="1ページずつ表示">
               <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="1.5" stroke-width="2"/></svg>
               <span>1ページ</span>
             </button>
-            <button type="button" class="pdf-seg-btn active" id="pdf-mode-two-btn" data-page-mode="two-page">
+            <button type="button" class="pdf-seg-btn active" id="pdf-mode-two-btn" data-page-mode="two-page" title="見開き2ページ表示">
               <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><rect x="3" y="4" width="8" height="16" rx="1.2" stroke-width="2"/><rect x="13" y="4" width="8" height="16" rx="1.2" stroke-width="2"/></svg>
               <span>2ページ</span>
             </button>
           </div>
-          <button type="button" class="pdf-tool-btn pdf-tool-chip" id="pdf-cover-toggle-btn" aria-pressed="false">
-            <span>表紙単独</span>
-          </button>
+          <div class="pdf-segmented" role="group" aria-label="表示サイズ">
+            <button type="button" class="pdf-seg-btn" id="pdf-fit-page-btn" data-zoom-mode="fit-page" title="ページ全体を表示 (Ctrl+0)">
+              <span>全体</span>
+            </button>
+            <button type="button" class="pdf-seg-btn" id="pdf-fit-width-btn" data-zoom-mode="fit-width" title="画面幅に合わせる">
+              <span>幅合わせ</span>
+            </button>
+          </div>
         </div>
 
         <div class="pdf-toolbar-group">
-          <button type="button" class="pdf-tool-btn" id="pdf-zoom-out-btn" aria-label="縮小">
-            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M5 12h14"/></svg>
-          </button>
-          <span id="pdf-zoom-label" class="pdf-zoom-label">100%</span>
-          <button type="button" class="pdf-tool-btn" id="pdf-zoom-in-btn" aria-label="拡大">
-            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 5v14M5 12h14"/></svg>
-          </button>
+          <div class="pdf-zoom-control">
+            <button type="button" class="pdf-tool-btn" id="pdf-zoom-out-btn" aria-label="縮小" title="縮小 (Ctrl+-)">
+              <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M5 12h14"/></svg>
+            </button>
+            <button type="button" id="pdf-zoom-label" class="pdf-zoom-label" title="100%表示にリセット">100%</button>
+            <button type="button" class="pdf-tool-btn" id="pdf-zoom-in-btn" aria-label="拡大" title="拡大 (Ctrl++)">
+              <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </div>
           <div class="pdf-toolbar-divider"></div>
-          <button type="button" class="pdf-tool-btn pdf-tool-chip" id="pdf-fit-page-btn" data-zoom-mode="fit-page">
-            <span>全体</span>
-          </button>
-          <button type="button" class="pdf-tool-btn pdf-tool-chip" id="pdf-fit-width-btn" data-zoom-mode="fit-width">
-            <span>幅合わせ</span>
-          </button>
-          <div class="pdf-toolbar-divider"></div>
-          <button type="button" class="pdf-tool-btn" id="pdf-rotate-btn" aria-label="90度回転">
-            <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9"/></svg>
+          <button type="button" class="pdf-tool-btn pdf-tool-chip" id="pdf-rotate-btn" aria-label="90度回転" title="90度回転 (R)">
+            <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-3.2-6.9M21 4v5h-5"/></svg>
+            <span>回転</span>
           </button>
         </div>
       </div>
@@ -861,14 +865,14 @@
   <div class="toast-container" id="toast-container"></div>
 
   <!-- アプリケーションロジック -->
-  <script src="js/app.js?v=1.4.19"></script>
+  <script src="js/app.js?v=1.4.20"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         if ('caches' in window && (location.hostname === '127.0.0.1' || location.hostname === 'localhost')) {
           caches.keys().then((keys) => keys.forEach((k) => caches.delete(k))).catch(() => {});
         }
-        navigator.serviceWorker.register('/sw.js?v=1.4.19').then((reg) => {
+        navigator.serviceWorker.register('/sw.js?v=1.4.20').then((reg) => {
           reg.update().catch(() => {});
         }).catch((err) => {
           console.debug('ServiceWorker registration skipped/failed:', err);

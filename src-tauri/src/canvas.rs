@@ -123,7 +123,7 @@ impl CanvasService {
             .pool_max_idle_per_host(4)
             .pool_idle_timeout(Duration::from_secs(30))
             .tcp_keepalive(Duration::from_secs(60))
-            .user_agent("Horizon-Rust/1.4.19")
+            .user_agent("Horizon-Rust/1.4.20")
             .build()
             .unwrap_or_else(|_| reqwest::Client::new());
 

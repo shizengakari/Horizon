@@ -23,7 +23,7 @@ use tokio_util::io::ReaderStream;
 use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 
-pub const APP_VERSION: &str = "1.4.19";
+pub const APP_VERSION: &str = "1.4.20";
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DownloadJob {
